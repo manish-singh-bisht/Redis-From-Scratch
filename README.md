@@ -56,3 +56,20 @@ Close: When done, you should release the file descriptor using close(fd) to free
 ### Special Case with Duplication:
 
 You can duplicate file descriptors using system calls like dup or dup2, which create new FDs that refer to the same underlying resource.
+
+## <ins>RESP</ins>
+
+The RESP (Redis Serialization Protocol) is a simple protocol used by Redis to serialize data exchanged between clients and servers. RESP is used to encode and decode data such as strings, integers, arrays, and more. It is designed to be easy to parse and human-readable.
+
+In RESP, the first byte of data determines its type.Subsequent bytes constitute the type's contents.
+Redis generally uses RESP as a request-response protocol in the following way:
+
+1. Clients send commands to a Redis server as an array of bulk strings. The first (and sometimes also the second) bulk string in the array is the command's name. Subsequent elements of the array are the arguments for the command.
+2. The server replies with a RESP type. The reply's type is determined by the command's implementation and possibly by the client's protocol version.
+
+### RESP Input Example for some types:
+
+- Simple String==> +string\r\n
+- Simple Error==> -ERR unknown command 'asdf'
+- Bulk String==> $5\r\nhello\r\n
+- Arrays==> \*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
