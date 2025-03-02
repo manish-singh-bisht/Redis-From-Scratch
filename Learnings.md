@@ -2,6 +2,15 @@
 
 ## <ins>1. I/O multiplexing</ins>
 
+I/O (Input/Output) operations refer to any action where a program reads data from or writes data to an external source, such as:
+
+1. Reading from a file
+2. Writing to a file
+3. Reading data from a network socket (e.g., receiving HTTP requests)
+4. Writing data to a network socket (e.g., sending HTTP responses)
+5. Reading/writing from a database
+6. Reading input from a keyboard or other devices
+
 I/O multiplexing allows a program to monitor(actively checking for readiness of data) multiple I/O streams (e.g., sockets, files) simultaneously and take action only when data is available on one or more of them. This technique is especially useful for programs handling multiple I/O connections, such as servers managing multiple client connections.
 
 It is more efficient because it avoids blocking a thread on a single I/O operation and reduces resource usage by eliminating the need to create multiple threads or processes for each I/O stream. Instead, a single thread can efficiently manage multiple I/O sources.
@@ -70,8 +79,63 @@ Redis generally uses RESP as a request-response protocol in the following way:
 - Bulk String==> $5\r\nhello\r\n
 - Arrays==> \*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
 
-## <ins>4. RDB</ins>
+## <ins>4. Persistence</ins>
 
 Persistence refers to the writing of data to durable storage, such as a solid-state disk (SSD).
 
-RDB (Redis Database): RDB persistence performs point-in-time snapshots of your dataset at specified intervals.
+1. RDB (Redis Database): RDB persistence performs point-in-time snapshots of your dataset at specified intervals.
+
+   An RDB file is a point-in-time snapshot of a Redis dataset. When RDB persistence is enabled, the Redis server syncs its in-memory state with an RDB file, by doing the following:
+
+   1. On startup, the Redis server loads the data from the RDB file.
+   2. While running, the Redis server periodically takes new snapshots of the dataset, in order to update the RDB file.
+
+   RDB files are perfect for backups.
+
+2) AOF (Append Only File): AOF persistence logs every write operation received by the server. These operations can then be replayed again at server startup, reconstructing the original dataset. Commands are logged using the same format as the Redis protocol itself.
+3) No persistence: You can disable persistence completely. This is sometimes used when caching.
+4) RDB + AOF: You can also combine both AOF and RDB in the same instance.
+
+### Endianness
+
+1.  <ins>BYTE</ins>
+
+    Each bit in a byte is a placeholder that can be either 0 or 1, forming different combinations. Since there are 8 bits, the total number of unique combinations is:
+    2^8=256
+
+    Since counting starts from 0, the range of values that can be represented in an 8-bit system is:
+    0 (00000000)to255 (11111111)
+    How?? just go from 2^0 till 2^7 and add them , you will get 255, we cannot store 256 because it will require more than 8 bit ,thus we cannot store number above 255 in a single byte.
+
+    1. Binary: 00000000 (0) to 11111111 (255)
+    2. Decimal: 0 to 255
+    3. Hexadecimal: 0x00 to 0xFF
+
+2.  <ins>Endianness</ins>
+
+    1.  Endianness is the order in which multi-byte numbers are stored in computer memory.
+
+        Since a single byte (8 bits) can only store values from 0 to 255, larger numbers (like 16-bit, 32-bit, or 64-bit values) require multiple bytes. The way these bytes are arranged in memory is called endianness.
+
+        <ins>Types of Endianness</ins>
+
+        1. Little-Endian (Used by Intel CPUs)
+
+           1. The least significant byte (LSB) is stored at the lowest memory address.
+           2. Bytes are arranged in order of least to most significant.
+
+        2. Big-Endian (Used in Networks, Older Macs, Some CPUs)
+
+           1. The most significant byte (MSB) is stored at the lowest memory address.
+           2. Bytes are arranged in order of most to least significant.
+
+    2.  LSB,MSB
+
+        1. LSB (Least Significant Bit): Smallest impact(2^0), determines odd/even.
+        2. MSB (Most Significant Bit): Largest impact(2^7), can indicate sign (positive/negative).
+        3. Endianness is about how bytes are stored, not individual bits!
+        4. Example:
+           1. 01111111 = 127 (Positive, MSB = 0, odd, LSB = 1)
+           2. 10000000 = -128 (Negative, MSB = 1, even , LSB = 0)
+
+3.  RDB file format - https://rdb.fnordig.de/file_format.html

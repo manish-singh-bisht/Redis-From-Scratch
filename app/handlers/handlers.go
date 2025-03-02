@@ -5,11 +5,10 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/manish-singh-bisht/Redis-From-Scratch/app/config"
+	store "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers/store"
+	config "github.com/manish-singh-bisht/Redis-From-Scratch/app/persistence"
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
 )
-
-var store = NewKeyValueStore()
 
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
 
@@ -19,6 +18,7 @@ var handlers = map[string]commandHandler{
 	"SET":    handleSet,
 	"GET":    handleGet,
 	"CONFIG": handleConfig,
+	"KEYS":   handleKeys,
 }
 
 func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
@@ -79,7 +79,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 				i++ // skip the next item, which will be the "value" for "PX" which we read above
 			}
 		case "NX":
-			_, exists := store.get(key)
+			_, exists := store.Store.Get(key)
 			if exists {
 
 				return writer.Encode(&RESP.RESPMessage{
@@ -88,7 +88,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 				})
 			}
 		case "XX":
-			_, exists := store.get(key)
+			_, exists := store.Store.Get(key)
 			if !exists {
 
 				return writer.Encode(&RESP.RESPMessage{
@@ -102,7 +102,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		}
 	}
 
-	store.set(key, value, expiration)
+	store.Store.Set(key, value, expiration)
 
 	return writer.Encode(&RESP.RESPMessage{
 		Type:  RESP.SimpleString,
@@ -117,7 +117,7 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	key := string(args[0].Value)
-	value, exists := store.get(key)
+	value, exists := store.Store.Get(key)
 
 	if !exists {
 
@@ -176,6 +176,31 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		return HandleError(writer, []byte("ERR unknown command"))
 
 	}
+}
+
+func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	if len(args) != 1 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'KEYS' command"))
+	}
+
+	pattern := string(args[0].Value)
+	keys := store.Store.GetKeys(pattern)
+
+	// Create response array
+	response := make([]RESP.RESPMessage, len(keys))
+	for i, key := range keys {
+		response[i] = RESP.RESPMessage{
+			Type:  RESP.BulkString,
+			Value: []byte(key),
+			Len:   len(key),
+		}
+	}
+
+	return writer.Encode(&RESP.RESPMessage{
+		Type:      RESP.Array,
+		Len:       len(response),
+		ArrayElem: response,
+	})
 }
 
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {

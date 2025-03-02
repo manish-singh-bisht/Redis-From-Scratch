@@ -1,4 +1,4 @@
-package handlers
+package store
 
 import (
 	"sync"
@@ -15,13 +15,15 @@ type KeyValueStore struct {
 	store map[string]StoredValue
 }
 
+var Store = NewKeyValueStore()
+
 func NewKeyValueStore() *KeyValueStore {
 	return &KeyValueStore{
 		store: make(map[string]StoredValue),
 	}
 }
 
-func (kv *KeyValueStore) set(key string, value []byte, expiration time.Duration) {
+func (kv *KeyValueStore) Set(key string, value []byte, expiration time.Duration) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
@@ -38,7 +40,7 @@ func (kv *KeyValueStore) set(key string, value []byte, expiration time.Duration)
 	kv.store[key] = storedValue
 }
 
-func (kv *KeyValueStore) get(key string) ([]byte, bool) {
+func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 
@@ -55,4 +57,21 @@ func (kv *KeyValueStore) get(key string) ([]byte, bool) {
 
 	// return the value
 	return storedValue.value, true
+}
+func (kv *KeyValueStore) GetKeys(pattern string) []string {
+	kv.mu.RLock()
+	defer kv.mu.RUnlock()
+
+	var keys []string
+	for key, value := range kv.store {
+		// Skip expired keys
+		if !value.expiration.IsZero() && time.Now().After(value.expiration) {
+			continue
+		}
+		// For now we only support "*" pattern which matches all keys
+		if pattern == "*" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
