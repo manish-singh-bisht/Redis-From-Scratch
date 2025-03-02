@@ -48,7 +48,7 @@ func main() {
 			fmt.Println("Error accepting connection:", err)
 			continue
 		}
-		// TODO make a event loop
+		// TODO make an event loop
 		go handleConnection(conn)
 	}
 }

@@ -51,6 +51,7 @@ func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 	}
 
 	// check whether expiration was provided and the time has passed more than the expiration, if yes return nil.
+	// should we delete the key from the store???
 	if !storedValue.expiration.IsZero() && time.Now().After(storedValue.expiration) {
 		return nil, false
 	}
