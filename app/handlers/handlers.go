@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers/store"
@@ -13,15 +14,18 @@ import (
 
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
 
-var handlers = map[string]commandHandler{
-	"PING":   handlePing,
-	"ECHO":   handleEcho,
-	"SET":    handleSet,
-	"GET":    handleGet,
-	"CONFIG": handleConfig,
-	"KEYS":   handleKeys,
-	"TYPE":   handleType,
-}
+var (
+	handlersLock sync.RWMutex
+	handlers     = map[string]commandHandler{
+		"PING":   handlePing,
+		"ECHO":   handleEcho,
+		"SET":    handleSet,
+		"GET":    handleGet,
+		"CONFIG": handleConfig,
+		"KEYS":   handleKeys,
+		"TYPE":   handleType,
+	}
+)
 
 func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	return writer.Encode(&RESP.RESPMessage{
@@ -45,6 +49,9 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	handlersLock.Lock()
+	defer handlersLock.Unlock()
+
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'SET' command"))
 
@@ -113,6 +120,9 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	handlersLock.RLock()
+	defer handlersLock.RUnlock()
+
 	if len(args) < 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'GET' command"))
 
@@ -137,6 +147,9 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	handlersLock.RLock()
+	defer handlersLock.RUnlock()
+
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'CONFIG' command"))
 
@@ -181,6 +194,9 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	handlersLock.RLock()
+	defer handlersLock.RUnlock()
+
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'KEYS' command"))
 	}
@@ -206,6 +222,9 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	handlersLock.RLock()
+	defer handlersLock.RUnlock()
+
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'TYPE' command"))
 	}
@@ -234,14 +253,15 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {
+	handlersLock.RLock()
+	defer handlersLock.RUnlock()
+
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
 
 	handler, exists := handlers[cmd]
-
 	if !exists {
 		return HandleError(writer, []byte("ERR unknown command"))
-
 	}
 
 	return handler(writer, args)
