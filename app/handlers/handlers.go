@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ var handlers = map[string]commandHandler{
 	"GET":    handleGet,
 	"CONFIG": handleConfig,
 	"KEYS":   handleKeys,
+	"TYPE":   handleType,
 }
 
 func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
@@ -200,6 +202,34 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		Type:      RESP.Array,
 		Len:       len(response),
 		ArrayElem: response,
+	})
+}
+
+func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	if len(args) != 1 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'TYPE' command"))
+	}
+
+	inputKey := string(args[0].Value)
+	keys := store.Store.GetKeys("*")
+
+	var typeOfKey string
+
+	for _, key := range keys {
+
+		if inputKey == key {
+			typeOfKey = reflect.TypeOf(key).String()
+		}
+
+	}
+	if typeOfKey == "" {
+		typeOfKey = "none"
+	}
+
+	return writer.Encode(&RESP.RESPMessage{
+		Type:  RESP.SimpleString,
+		Len:   len(typeOfKey),
+		Value: []byte(typeOfKey),
 	})
 }
 

@@ -11,6 +11,7 @@ Redis built from scratch.
 - PING
 - ECHO
 - KEYS (only \* pattern)
+- TYPE
 
 ### 2) RESP Parser:
 
