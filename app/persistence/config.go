@@ -3,7 +3,7 @@ package persistence
 import "sync"
 
 var (
-	mu     sync.Mutex
+	mu     sync.RWMutex
 	config = struct {
 		dir        string
 		dbFilename string
@@ -21,7 +21,7 @@ func InitConfig(dir, filename string) {
 }
 
 func GetConfig() (string, string) {
-	mu.Lock()
-	defer mu.Unlock()
+	mu.RLock()
+	defer mu.RUnlock()
 	return config.dir, config.dbFilename
 }

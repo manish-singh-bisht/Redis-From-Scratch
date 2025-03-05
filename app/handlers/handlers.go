@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers/store"
@@ -15,7 +14,6 @@ import (
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
 
 var (
-	handlersLock sync.RWMutex
 	handlers     = map[string]commandHandler{
 		"PING":   handlePing,
 		"ECHO":   handleEcho,
@@ -348,9 +346,7 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 * ExecuteCommand executes a command and returns the response
  */
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {
-	handlersLock.Lock()
-	defer handlersLock.Unlock()
-
+	
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
 
