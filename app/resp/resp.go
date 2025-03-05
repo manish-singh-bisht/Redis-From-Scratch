@@ -169,7 +169,7 @@ func (r *Reader) decodeArray() (*RESPMessage, error) {
 }
 
 /*
- 	* Writer is a writer for RESP messages
+* Writer is a writer for RESP messages
  */
 type Writer struct {
 	writer *bufio.Writer

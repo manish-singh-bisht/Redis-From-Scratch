@@ -14,7 +14,7 @@ import (
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
 
 var (
-	handlers     = map[string]commandHandler{
+	handlers = map[string]commandHandler{
 		"PING":   handlePing,
 		"ECHO":   handleEcho,
 		"SET":    handleSet,
@@ -346,7 +346,7 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 * ExecuteCommand executes a command and returns the response
  */
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {
-	
+
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
 

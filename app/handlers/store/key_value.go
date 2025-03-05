@@ -57,8 +57,8 @@ func (kv *KeyValueStore) Set(key string, value []byte, expiration time.Duration)
 	* @return bool - true if the key exists, false otherwise
 */
 func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
+	kv.mu.RLock()
+	defer kv.mu.RUnlock()
 
 	// check for key, returns nil if absent.
 	storedValue, exists := kv.store[key]
@@ -82,8 +82,8 @@ func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 	* @return []string - the keys that match the pattern
 */
 func (kv *KeyValueStore) GetKeys(pattern string) []string {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
+	kv.mu.RLock()
+	defer kv.mu.RUnlock()
 
 	var keys []string
 	for key, value := range kv.store {
