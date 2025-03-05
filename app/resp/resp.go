@@ -26,10 +26,20 @@ type Reader struct {
 	reader *bufio.Reader // helps track the state of reader.
 }
 
+/*
+ 	* NewReader creates a new Reader
+	* @param rd io.Reader - the reader to read from
+	* @return *Reader - the new Reader
+*/
 func NewReader(rd io.Reader) *Reader {
 	return &Reader{reader: bufio.NewReader(rd)}
 }
 
+/*
+ 	* Decode decodes the RESP message
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) Decode() (*RESPMessage, error) {
 	_type, err := r.reader.ReadByte() // the first byte always represents the type of data coming in.
 	if err != nil {
@@ -58,6 +68,11 @@ func (r *Reader) Decode() (*RESPMessage, error) {
 	}
 }
 
+/*
+ 	* decodeSimpleString decodes a simple string
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) decodeSimpleString() (*RESPMessage, error) {
 	line, length, err := r.readLine()
 	if err != nil {
@@ -67,6 +82,11 @@ func (r *Reader) decodeSimpleString() (*RESPMessage, error) {
 	return &RESPMessage{Type: SimpleString, Len: length, Value: line}, nil
 }
 
+/*
+ 	* decodeError decodes an error
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) decodeError() (*RESPMessage, error) {
 	line, length, err := r.readLine()
 	if err != nil {
@@ -76,6 +96,11 @@ func (r *Reader) decodeError() (*RESPMessage, error) {
 	return &RESPMessage{Type: Error, Len: length, Value: line}, nil
 }
 
+/*
+ 	* decodeInteger decodes an integer
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) decodeInteger() (*RESPMessage, error) {
 	line, length, err := r.readLine()
 	if err != nil {
@@ -85,6 +110,11 @@ func (r *Reader) decodeInteger() (*RESPMessage, error) {
 	return &RESPMessage{Type: Integer, Len: length, Value: line}, nil
 }
 
+/*
+ 	* decodeBulkString decodes a bulk string
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) decodeBulkString() (*RESPMessage, error) {
 	length, err := r.readLength()
 	if err != nil {
@@ -110,6 +140,11 @@ func (r *Reader) decodeBulkString() (*RESPMessage, error) {
 	return &RESPMessage{Type: BulkString, Len: length, Value: content}, nil
 }
 
+/*
+ 	* decodeArray decodes an array
+	* @return *RESPMessage - the decoded RESP message
+	* @return error - the error if there is one
+*/
 func (r *Reader) decodeArray() (*RESPMessage, error) {
 	length, err := r.readLength()
 	if err != nil {
@@ -123,7 +158,6 @@ func (r *Reader) decodeArray() (*RESPMessage, error) {
 
 	arrayElements := make([]RESPMessage, 0, length)
 	for i := 0; i < length; i++ {
-		// re-read the inner types
 		element, err := r.Decode()
 		if err != nil {
 			return nil, fmt.Errorf("error decoding array element %d: %v", i, err)
@@ -134,14 +168,27 @@ func (r *Reader) decodeArray() (*RESPMessage, error) {
 	return &RESPMessage{Type: Array, Len: length, ArrayElem: arrayElements}, nil
 }
 
+/*
+ 	* Writer is a writer for RESP messages
+ */
 type Writer struct {
 	writer *bufio.Writer
 }
 
+/*
+ 	* NewWriter creates a new Writer
+	* @param w io.Writer - the writer to write to
+	* @return *Writer - the new Writer
+*/
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{writer: bufio.NewWriter(w)}
 }
 
+/*
+ 	* Encode encodes a RESP message
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) Encode(msg *RESPMessage) error {
 
 	switch msg.Type {
@@ -166,6 +213,11 @@ func (w *Writer) Encode(msg *RESPMessage) error {
 	}
 }
 
+/*
+ 	* encodeSimpleString encodes a simple string
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeSimpleString(msg *RESPMessage) error {
 	if err := w.writer.WriteByte(SimpleString); err != nil {
 		return err
@@ -182,6 +234,11 @@ func (w *Writer) encodeSimpleString(msg *RESPMessage) error {
 	return w.writer.Flush()
 }
 
+/*
+ 	* encodeError encodes an error
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeError(msg *RESPMessage) error {
 	if err := w.writer.WriteByte(Error); err != nil {
 		return err
@@ -198,6 +255,11 @@ func (w *Writer) encodeError(msg *RESPMessage) error {
 	return w.writer.Flush()
 }
 
+/*
+ 	* encodeInteger encodes an integer
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeInteger(msg *RESPMessage) error {
 	if err := w.writer.WriteByte(Integer); err != nil {
 		return err
@@ -214,6 +276,11 @@ func (w *Writer) encodeInteger(msg *RESPMessage) error {
 	return w.writer.Flush()
 }
 
+/*
+ 	* encodeBulkString encodes a bulk string
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeBulkString(msg *RESPMessage) error {
 	if msg.Value == nil {
 		return w.encodeNil()
@@ -242,6 +309,11 @@ func (w *Writer) encodeBulkString(msg *RESPMessage) error {
 	return w.writer.Flush()
 }
 
+/*
+ 	* encodeArray encodes an array
+	* @param msg *RESPMessage - the RESP message to encode
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeArray(msg *RESPMessage) error {
 	if err := w.writer.WriteByte(Array); err != nil {
 		return err
@@ -256,8 +328,6 @@ func (w *Writer) encodeArray(msg *RESPMessage) error {
 	}
 
 	for _, element := range msg.ArrayElem {
-		// this is why a separate storage was done for array elements
-		// no extra decoding for array elements
 		if err := w.Encode(&element); err != nil {
 			return fmt.Errorf("error encoding array element: %v", err)
 		}
@@ -266,6 +336,10 @@ func (w *Writer) encodeArray(msg *RESPMessage) error {
 	return w.writer.Flush()
 }
 
+/*
+ 	* encodeNil encodes a nil value
+	* @return error - the error if there is one
+*/
 func (w *Writer) encodeNil() error {
 	if _, err := w.writer.Write([]byte("$-1\r\n")); err != nil {
 		return err

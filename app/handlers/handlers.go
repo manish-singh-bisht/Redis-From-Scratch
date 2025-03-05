@@ -24,9 +24,17 @@ var (
 		"CONFIG": handleConfig,
 		"KEYS":   handleKeys,
 		"TYPE":   handleType,
+		"XADD":   handleXAdd,
 	}
 )
 
+/*
+ 	* handlePing handles the PING command, returns "PONG"
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return simple string "PONG"
+*/
 func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	return writer.Encode(&RESP.RESPMessage{
 		Type:  RESP.SimpleString,
@@ -34,7 +42,15 @@ func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleEcho handles the ECHO command, echoes a message
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return bulk string - the message to echo
+*/
 func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage) error {
+
 	if len(args) > 0 {
 
 		return writer.Encode(&RESP.RESPMessage{
@@ -48,9 +64,14 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 }
 
+/*
+ 	* handleSet handles the SET command, sets a key to a value
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return simple string "OK"
+*/
 func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
-	handlersLock.Lock()
-	defer handlersLock.Unlock()
 
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'SET' command"))
@@ -119,9 +140,14 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleGet handles the GET command, gets a value from a key
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return bulk string - the value of the key
+*/
 func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
-	handlersLock.RLock()
-	defer handlersLock.RUnlock()
 
 	if len(args) < 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'GET' command"))
@@ -146,9 +172,14 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleConfig handles the CONFIG command, gets the configuration of the server
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return array - the configuration of the server
+*/
 func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
-	handlersLock.RLock()
-	defer handlersLock.RUnlock()
 
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'CONFIG' command"))
@@ -193,9 +224,14 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 }
 
+/*
+ 	* handleKeys returns all the keys that match the pattern
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return array - the keys that match the pattern
+*/
 func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
-	handlersLock.RLock()
-	defer handlersLock.RUnlock()
 
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'KEYS' command"))
@@ -221,9 +257,14 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleType returns the type of the key
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return simple string - the type of the key
+*/
 func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
-	handlersLock.RLock()
-	defer handlersLock.RUnlock()
 
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'TYPE' command"))
@@ -241,6 +282,14 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		}
 
 	}
+
+	if typeOfKey == "" {
+		isStream := store.StreamManager.IsStreamKey(inputKey)
+		if isStream {
+			typeOfKey = "stream"
+		}
+	}
+
 	if typeOfKey == "" {
 		typeOfKey = "none"
 	}
@@ -252,9 +301,55 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleXAdd handles the XADD command, adds a new entry to a stream
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return bulk string - the ID of the new entry
+*/
+func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
+
+	// Check minimum required arguments (stream name, ID, and at least one field-value pair)
+	if len(args) < 4 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
+	}
+
+	streamName := string(args[0].Value)
+	id := string(args[1].Value)
+
+	// Validate that we have an even number of field-value pairs
+	if (len(args)-2)%2 != 0 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
+	}
+
+	// Convert RESP messages to map[string][]byte
+	dataMap := make(map[string][]byte)
+	for i := 2; i < len(args); i += 2 {
+		key := string(args[i].Value)
+		value := args[i+1].Value
+		dataMap[key] = value
+	}
+
+	streamRecord, ok, err := store.StreamManager.XAdd(streamName, id, dataMap)
+
+	if !ok && err != nil {
+		return HandleError(writer, []byte(err.Error()))
+	}
+
+	return writer.Encode(&RESP.RESPMessage{
+		Type:  RESP.BulkString,
+		Len:   len(streamRecord.Id),
+		Value: []byte(streamRecord.Id),
+	})
+}
+
+/*
+* ExecuteCommand executes a command and returns the response
+ */
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {
-	handlersLock.RLock()
-	defer handlersLock.RUnlock()
+	handlersLock.Lock()
+	defer handlersLock.Unlock()
 
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
