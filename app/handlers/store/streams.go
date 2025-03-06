@@ -182,6 +182,10 @@ func (sm *StreamsManager) XRead(streamName, startId string) ([]streamRecord, err
 
 	exists, err := sm.IsValidStreamRecordIdExists(streamName, startId, "read")
 
+	if err != nil {
+		return nil, err
+	}
+
 	if !exists && startId != "0-0" {
 		return nil, err
 	}
