@@ -23,6 +23,7 @@ var (
 		"KEYS":   handleKeys,
 		"TYPE":   handleType,
 		"XADD":   handleXAdd,
+		"XRANGE": handleXRange,
 	}
 )
 
@@ -339,6 +340,96 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		Type:  RESP.BulkString,
 		Len:   len(streamRecord.Id),
 		Value: []byte(streamRecord.Id),
+	})
+}
+
+/*
+- handleXRange handles the XRANGE command, gets a range of entries from a stream
+- @param writer *RESP.Writer - the writer to write the response to
+- @param args []RESP.RESPMessage - the arguments for the command
+- @return error - the error if there is one
+- @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
+*/
+func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
+
+	if len(args) != 3 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'XRANGE' command"))
+	}
+
+	streamName := string(args[0].Value)
+	startId := string(args[1].Value)
+	endId := string(args[2].Value)
+
+	streamRecord, err := store.StreamManager.XRange(streamName, startId, endId)
+
+	if err != nil {
+		return HandleError(writer, []byte(err.Error()))
+	}
+
+	// final response
+	// [
+	//   [
+	//     "0-2",
+	//     [
+	//       "bar",
+	//       "baz"
+	//     ]
+	//   ],
+	//   [
+	//     "0-3",
+	//     [
+	//       "baz",
+	//       "foo"
+	//     ]
+	//   ]
+	// ]
+
+	finalResponse := make([]RESP.RESPMessage, len(streamRecord))
+
+	for i, record := range streamRecord {
+		innerResponse := make([]RESP.RESPMessage, 2)
+
+		// first item is the ID
+		innerResponse[0] = RESP.RESPMessage{
+			Type:  RESP.BulkString,
+			Len:   len(record.Id),
+			Value: []byte(record.Id),
+		}
+
+		// second item is the array of key value pairs in the order they were added to the entry
+
+		for key, value := range record.Data {
+			arrayOfKeyValues := make([]RESP.RESPMessage, len(record.Data)*2) // because key and then value
+
+			arrayOfKeyValues[0] = RESP.RESPMessage{
+				Type:  RESP.BulkString,
+				Len:   len(key),
+				Value: []byte(key),
+			}
+			arrayOfKeyValues[1] = RESP.RESPMessage{
+				Type:  RESP.BulkString,
+				Len:   len(value),
+				Value: value,
+			}
+
+			innerResponse[1] = RESP.RESPMessage{
+				Type:      RESP.Array,
+				Len:       len(arrayOfKeyValues),
+				ArrayElem: arrayOfKeyValues,
+			}
+		}
+
+		finalResponse[i] = RESP.RESPMessage{
+			Type:      RESP.Array,
+			Len:       len(innerResponse),
+			ArrayElem: innerResponse,
+		}
+	}
+
+	return writer.Encode(&RESP.RESPMessage{
+		Type:      RESP.Array,
+		Len:       len(finalResponse),
+		ArrayElem: finalResponse,
 	})
 }
 

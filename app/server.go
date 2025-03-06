@@ -13,6 +13,9 @@ import (
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
 )
 
+var PORT = 6379
+var HOST = "0.0.0.0"
+
 func main() {
 
 	dir := flag.String("dir", ".", "RDB file directory") //name defaultValues description
@@ -35,9 +38,9 @@ func main() {
 	}
 
 	// Start server
-	ln, err := net.Listen("tcp", "0.0.0.0:6379")
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", HOST, PORT))
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Println("Failed to bind to port", PORT)
 		os.Exit(1)
 	}
 	defer ln.Close()

@@ -2,6 +2,7 @@ package store
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 )
 
@@ -16,9 +17,9 @@ type StreamsStore interface {
 
 type streamRecord struct {
 	Id               string // store ID (Milliseconds-SequenceNumber), this is most probably done to make it monotonically increasing, not completely dependent on the time(due to time-of-the-day clock skew), not sure though
-	millisecondsTime int64
-	sequenceNumber   int
-	data             map[string][]byte // Key-value data for the record
+	MillisecondsTime int64
+	SequenceNumber   int
+	Data             map[string][]byte // Key-value data for the record
 }
 
 type stream struct {
@@ -94,12 +95,59 @@ func (sm *StreamsManager) XAdd(streamName, id string, data map[string][]byte) (s
 
 	streamRecord := streamRecord{
 		Id:               newId,
-		millisecondsTime: newMillisecondsTime,
-		sequenceNumber:   newSequenceNumber,
-		data:             data,
+		MillisecondsTime: newMillisecondsTime,
+		SequenceNumber:   newSequenceNumber,
+		Data:             data,
 	}
 	element := stream.recordList.PushBack(&streamRecord)
 	stream.recordMap[newId] = element
 
 	return streamRecord, true, nil
+}
+
+/*
+ 	* XRange gets a range of entries from a stream
+	* @param streamName string - the name of the stream
+	* @param startId string - the ID of the start of the range
+	* @param endId string - the ID of the end of the range
+	* @return []streamRecord - the range of entries
+	* @return error - the error if there is one
+*/
+func (sm *StreamsManager) XRange(streamName, startId, endId string) ([]streamRecord, error) {
+	if !sm.IsStreamKey(streamName) {
+		return nil, fmt.Errorf("ERR The stream specified does not exist")
+	}
+
+	exists, err := sm.IsValidStreamRecordIdExists(streamName, startId)
+	if !exists {
+		return nil, err
+	}
+
+	exists, err = sm.IsValidStreamRecordIdExists(streamName, endId)
+	if !exists {
+		return nil, err
+	}
+
+	stream := sm.Streams[streamName]
+
+	stream.mu.RLock()
+	defer stream.mu.RUnlock()
+
+	startElem := stream.recordMap[startId]
+	endElem := stream.recordMap[endId]
+
+	var result []streamRecord
+	current := startElem
+
+	for current != nil {
+		record := current.Value.(*streamRecord)
+		result = append(result, *record)
+
+		if current == endElem {
+			break
+		}
+		current = current.Next()
+	}
+
+	return result, nil
 }
