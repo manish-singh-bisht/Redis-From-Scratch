@@ -28,6 +28,10 @@ func (sm *StreamsManager) IsValidStreamRecordIdExists(streamName, id string) (bo
 		return false, fmt.Errorf("ERR The stream specified does not exist")
 	}
 
+	if id == "-" || id == "+" {
+		return true, nil
+	}
+
 	stream := sm.Streams[streamName]
 
 	stream.mu.RLock()

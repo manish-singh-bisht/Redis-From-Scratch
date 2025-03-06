@@ -133,8 +133,24 @@ func (sm *StreamsManager) XRange(streamName, startId, endId string) ([]streamRec
 	stream.mu.RLock()
 	defer stream.mu.RUnlock()
 
-	startElem := stream.recordMap[startId]
-	endElem := stream.recordMap[endId]
+	var startElem *list.Element
+	var endElem *list.Element
+
+	if startId == "+" || endId == "-" {
+		return nil, fmt.Errorf("ERR The start or end ID is invalid")
+	}
+
+	if startId == "-" {
+		startElem = stream.recordList.Front()
+	} else {
+		startElem = stream.recordMap[startId]
+	}
+
+	if endId == "+" {
+		endElem = stream.recordList.Back()
+	} else {
+		endElem = stream.recordMap[endId]
+	}
 
 	var result []streamRecord
 	current := startElem
