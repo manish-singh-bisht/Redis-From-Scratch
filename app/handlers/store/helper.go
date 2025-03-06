@@ -21,14 +21,15 @@ func (sm *StreamsManager) IsStreamKey(key string) bool {
  	* IsValidStreamRecordIdExists checks if a stream record ID exists
 	* @param streamName string - the name of the stream
 	* @param id string - the ID to check
+	* @param typeOfOperation string - the type of operation, "range" or "read" etc
 	* @return bool - true if the ID exists, false otherwise
 */
-func (sm *StreamsManager) IsValidStreamRecordIdExists(streamName, id string) (bool, error) {
+func (sm *StreamsManager) IsValidStreamRecordIdExists(streamName, id string, typeOfOperation string) (bool, error) {
 	if !sm.IsStreamKey(streamName) {
 		return false, fmt.Errorf("ERR The stream specified does not exist")
 	}
 
-	if id == "-" || id == "+" {
+	if typeOfOperation == "range" && (id == "-" || id == "+") {
 		return true, nil
 	}
 

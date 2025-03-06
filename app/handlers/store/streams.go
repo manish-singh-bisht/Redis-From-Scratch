@@ -110,7 +110,7 @@ func (sm *StreamsManager) XAdd(streamName, id string, data map[string][]byte) (s
 	* @param streamName string - the name of the stream
 	* @param startId string - the ID of the start of the range
 	* @param endId string - the ID of the end of the range
-	* @return []streamRecord - the range of entries
+	* @return []streamRecord - the range of entries, inclusive of the start and end IDs
 	* @return error - the error if there is one
 */
 func (sm *StreamsManager) XRange(streamName, startId, endId string) ([]streamRecord, error) {
@@ -118,12 +118,12 @@ func (sm *StreamsManager) XRange(streamName, startId, endId string) ([]streamRec
 		return nil, fmt.Errorf("ERR The stream specified does not exist")
 	}
 
-	exists, err := sm.IsValidStreamRecordIdExists(streamName, startId)
+	exists, err := sm.IsValidStreamRecordIdExists(streamName, startId, "range")
 	if !exists {
 		return nil, err
 	}
 
-	exists, err = sm.IsValidStreamRecordIdExists(streamName, endId)
+	exists, err = sm.IsValidStreamRecordIdExists(streamName, endId, "range")
 	if !exists {
 		return nil, err
 	}
@@ -166,4 +166,51 @@ func (sm *StreamsManager) XRange(streamName, startId, endId string) ([]streamRec
 	}
 
 	return result, nil
+}
+
+/*
+ 	* XRead gets a range of entries from a stream, exclusive of the start ID
+	* @param streamName string - the name of the stream
+	* @param startId string - the ID of the start of the range
+	* @return []streamRecord - the range of entries, exclusive of the start ID
+	* @return error - the error if there is one
+*/
+func (sm *StreamsManager) XRead(streamName, startId string) ([]streamRecord, error) {
+	if !sm.IsStreamKey(streamName) {
+		return nil, fmt.Errorf("ERR The stream specified does not exist")
+	}
+
+	exists, err := sm.IsValidStreamRecordIdExists(streamName, startId, "read")
+
+	if !exists && startId != "0-0" {
+		return nil, err
+	}
+
+	stream := sm.Streams[streamName]
+
+	stream.mu.RLock()
+	defer stream.mu.RUnlock()
+
+	var result []streamRecord
+
+	var startElem *list.Element
+	var current *list.Element
+
+	if startId == "0-0" {
+		startElem = stream.recordList.Front()
+		current = startElem
+	} else {
+		startElem = stream.recordMap[startId]
+		current = startElem.Next()
+	}
+
+	for current != nil {
+		record := current.Value.(*streamRecord)
+		result = append(result, *record)
+
+		current = current.Next()
+	}
+
+	return result, nil
+
 }
