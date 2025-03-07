@@ -25,7 +25,7 @@ var (
 		"TYPE":   handleType,   // returns the type of the key
 		"XADD":   handleXAdd,   // adds a new entry to a stream, creates a stream if it doesn't exist
 		"XRANGE": handleXRange, // gets a range of entries from a stream, inclusive of the start and end IDs, takes in start and end IDs as arguments
-		"XREAD":  handleXRead,  // gets a range of entries from a stream, exclusive of start id, takes in start id as argument, can also read from multiple streams
+		"XREAD":  handleXRead,  // gets a range of entries from a stream that are strictly greater than the start id, exclusive of start id, takes in start id as argument, can also read from multiple streams
 	}
 )
 
@@ -346,14 +346,13 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 }
 
 /*
-- handleXRange handles the XRANGE command, gets a range of entries from a stream
-- @param writer *RESP.Writer - the writer to write the response to
-- @param args []RESP.RESPMessage - the arguments for the command
-- @return error - the error if there is one
-- @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
+ 	* handleXRange handles the XRANGE command, gets a range of entries from a stream
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
 */
 func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
-
 	if len(args) != 3 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XRANGE' command"))
 	}
@@ -362,12 +361,10 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	startId := string(args[1].Value)
 	endId := string(args[2].Value)
 
-	streamRecord, err := store.StreamManager.XRange(streamName, startId, endId)
-
+	streamRecords, err := store.StreamManager.XRange(streamName, startId, endId)
 	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
 	}
-
 	// final response
 	// [
 	//   [
@@ -386,60 +383,15 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	//   ]
 	// ]
 
-	finalResponse := make([]RESP.RESPMessage, len(streamRecord))
-
-	for i, record := range streamRecord {
-		innerResponse := make([]RESP.RESPMessage, 2)
-
-		// first item is the ID
-		innerResponse[0] = RESP.RESPMessage{
-			Type:  RESP.BulkString,
-			Len:   len(record.Id),
-			Value: []byte(record.Id),
-		}
-
-		// second item is the array of key value pairs in the order they were added to the entry
-
-		innerResponseArray := []RESP.RESPMessage{}
-		for key, value := range record.Data {
-
-			keyEntry := RESP.RESPMessage{
-				Type:  RESP.BulkString,
-				Len:   len(key),
-				Value: []byte(key),
-			}
-			valueEntry := RESP.RESPMessage{
-				Type:  RESP.BulkString,
-				Len:   len(value),
-				Value: value,
-			}
-
-			innerResponseArray = append(innerResponseArray, keyEntry, valueEntry)
-		}
-
-		innerResponse[1] = RESP.RESPMessage{
-			Type:      RESP.Array,
-			Len:       len(innerResponseArray),
-			ArrayElem: innerResponseArray,
-		}
-
-		finalResponse[i] = RESP.RESPMessage{
-			Type:      RESP.Array,
-			Len:       len(innerResponse),
-			ArrayElem: innerResponse,
-		}
-	}
-
+	entries := store.StreamManager.CreateStreamEntryMessages(streamRecords)
 	return writer.Encode(&RESP.RESPMessage{
 		Type:      RESP.Array,
-		Len:       len(finalResponse),
-		ArrayElem: finalResponse,
+		Len:       len(entries),
+		ArrayElem: entries,
 	})
 }
 
 func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
-
-	// streams name1 id1
 	if len(args) < 3 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
@@ -449,31 +401,28 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	// Calculate number of streams and validate argument count
-	numStreams := (len(args) - 1) / 2 // the total args for XREAD will always be odd, and removing the first arg which is "STREAMS", there will just streamName(s) and id(s)
+	// the total args for XREAD will always be odd, and removing the first arg which is "STREAMS", there will just streamName(s) and id(s)
+	numStreams := (len(args) - 1) / 2
 	if len(args) != (numStreams*2 + 1) {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
 
-	finalResponseOuterArray := []RESP.RESPMessage{}
-
-	// Get all stream names first (they come after "STREAMS" and before IDs)
 	streamNames := args[1 : numStreams+1]
-	// Get all IDs (they come after all stream names)
 	streamIds := args[numStreams+1:]
 
-	// Process each stream and its ID
+	// Process each stream
+	finalResponse := make([]RESP.RESPMessage, 0, numStreams)
 	for i := 0; i < numStreams; i++ {
 		streamName := string(streamNames[i].Value)
 		startId := string(streamIds[i].Value)
 
-		streamRecord, err := store.StreamManager.XRead(streamName, startId)
-
+		streamRecords, err := store.StreamManager.XRead(streamName, startId)
 		if err != nil {
 			fmt.Print(err.Error())
 			continue
 		}
 
-		if len(streamRecord) == 0 {
+		if len(streamRecords) == 0 {
 			fmt.Printf("stream record length is 0 for stream: %v, id: %v", streamName, startId)
 			continue
 		}
@@ -495,73 +444,30 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		//     ]
 		//   ]
 		// ]
-
-		finalResponse := make([]RESP.RESPMessage, 2)
-		finalResponseInner := make([]RESP.RESPMessage, len(streamRecord))
-
-		for i, record := range streamRecord {
-			innerResponse := make([]RESP.RESPMessage, 2)
-
-			// first item is the ID
-			innerResponse[0] = RESP.RESPMessage{
-				Type:  RESP.BulkString,
-				Len:   len(record.Id),
-				Value: []byte(record.Id),
-			}
-
-			// second item is the array of key value pairs in the order they were added to the entry
-
-			innerResponseArray := []RESP.RESPMessage{}
-			for key, value := range record.Data {
-				keyEntry := RESP.RESPMessage{
+		entries := store.StreamManager.CreateStreamEntryMessages(streamRecords)
+		streamResponse := RESP.RESPMessage{
+			Type: RESP.Array,
+			Len:  2,
+			ArrayElem: []RESP.RESPMessage{
+				{
 					Type:  RESP.BulkString,
-					Len:   len(key),
-					Value: []byte(key),
-				}
-				valueEntry := RESP.RESPMessage{
-					Type:  RESP.BulkString,
-					Len:   len(value),
-					Value: value,
-				}
-
-				innerResponseArray = append(innerResponseArray, keyEntry, valueEntry)
-			}
-
-			innerResponse[1] = RESP.RESPMessage{
-				Type:      RESP.Array,
-				Len:       len(innerResponseArray),
-				ArrayElem: innerResponseArray,
-			}
-
-			finalResponseInner[i] = RESP.RESPMessage{
-				Type:      RESP.Array,
-				Len:       len(innerResponse),
-				ArrayElem: innerResponse,
-			}
+					Len:   len(streamName),
+					Value: []byte(streamName),
+				},
+				{
+					Type:      RESP.Array,
+					Len:       len(entries),
+					ArrayElem: entries,
+				},
+			},
 		}
-
-		finalResponse[0] = RESP.RESPMessage{
-			Type:  RESP.BulkString,
-			Len:   len(streamName),
-			Value: []byte(streamName),
-		}
-
-		finalResponse[1] = RESP.RESPMessage{
-			Type:      RESP.Array,
-			Len:       len(finalResponseInner),
-			ArrayElem: finalResponseInner,
-		}
-
-		finalResponseOuterArray = append(finalResponseOuterArray, RESP.RESPMessage{
-			Type:      RESP.Array,
-			Len:       len(finalResponse),
-			ArrayElem: finalResponse,
-		})
+		finalResponse = append(finalResponse, streamResponse)
 	}
+
 	return writer.Encode(&RESP.RESPMessage{
 		Type:      RESP.Array,
-		Len:       len(finalResponseOuterArray),
-		ArrayElem: finalResponseOuterArray,
+		Len:       len(finalResponse),
+		ArrayElem: finalResponse,
 	})
 }
 
