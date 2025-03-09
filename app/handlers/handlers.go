@@ -383,7 +383,7 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	//   ]
 	// ]
 
-	entries := store.StreamManager.CreateStreamEntryMessages(streamRecords)
+	entries := store.StreamManager.CreateStreamMessages(streamRecords)
 	return writer.Encode(&RESP.RESPMessage{
 		Type:      RESP.Array,
 		Len:       len(entries),
@@ -396,21 +396,57 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
 
-	if strings.ToUpper(string(args[0].Value)) != "STREAMS" {
+	// default values
+	blockMs := -1
+	count := -1
+	streamStartIdx := -1
+
+	for i := 0; i < len(args); i++ {
+		option := strings.ToUpper(string(args[i].Value))
+		switch option {
+		case "BLOCK":
+			if i+1 >= len(args) {
+				return HandleError(writer, []byte("ERR syntax error"))
+			}
+			var err error
+			blockMs, err = strconv.Atoi(string(args[i+1].Value))
+			if err != nil || blockMs < 0 {
+				return HandleError(writer, []byte("ERR invalid BLOCK time"))
+			}
+			i++ // skip the block value
+		case "COUNT":
+			if i+1 >= len(args) {
+				return HandleError(writer, []byte("ERR syntax error"))
+			}
+			var err error
+			count, err = strconv.Atoi(string(args[i+1].Value))
+			if err != nil || count < 0 {
+				return HandleError(writer, []byte("ERR invalid COUNT"))
+			}
+			i++ // skip the count value
+		case "STREAMS":
+			streamStartIdx = i + 1
+			i = len(args) // exit the loop by setting i to length of args
+		}
+	}
+
+	if streamStartIdx == -1 {
 		return HandleError(writer, []byte("ERR syntax error"))
 	}
 
-	// Calculate number of streams and validate argument count
-	// the total args for XREAD will always be odd, and removing the first arg which is "STREAMS", there will just streamName(s) and id(s)
-	numStreams := (len(args) - 1) / 2
-	if len(args) != (numStreams*2 + 1) {
+	// calculate number of streams and validate argument count
+	// the total args for XREAD will always be odd, and removing the arg which is "STREAMS" and even pair of "COUNT" and "BLOCK", there will just streamName(s) and id(s)
+	remainingArgs := len(args) - streamStartIdx
+	if remainingArgs%2 != 0 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
+	numStreams := remainingArgs / 2
 
-	streamNames := args[1 : numStreams+1]
-	streamIds := args[numStreams+1:]
+	// collect stream names and ids
+	streamNames := args[streamStartIdx : streamStartIdx+numStreams]
+	streamIds := args[streamStartIdx+numStreams:]
 
-	// Process each stream
+	// process each stream
 	finalResponse := make([]RESP.RESPMessage, 0, numStreams)
 	for i := 0; i < numStreams; i++ {
 		streamName := string(streamNames[i].Value)
@@ -444,7 +480,7 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		//     ]
 		//   ]
 		// ]
-		entries := store.StreamManager.CreateStreamEntryMessages(streamRecords)
+		entries := store.StreamManager.CreateStreamMessages(streamRecords)
 		streamResponse := RESP.RESPMessage{
 			Type: RESP.Array,
 			Len:  2,
