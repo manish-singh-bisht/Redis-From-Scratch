@@ -135,7 +135,7 @@ func (r *Reader) decodeBulkString() (*RESPMessage, error) {
 		return nil, err
 	}
 
-	r.readLine() // Consume trailing \r\n
+	r.readLine() // consume trailing \r\n
 
 	return &RESPMessage{Type: BulkString, Len: length, Value: content}, nil
 }

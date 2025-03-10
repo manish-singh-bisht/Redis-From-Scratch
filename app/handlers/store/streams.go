@@ -8,11 +8,15 @@ import (
 
 var StreamManager = newStreamsManager()
 
+const (
+	DefaultStreamMaxLen = 1000
+)
+
 type StreamRecord struct {
 	Id               string // store ID (Milliseconds-SequenceNumber), this is most probably done to make it monotonically increasing, not completely dependent on the time(due to time-of-the-day clock skew), not sure though
 	MillisecondsTime int64
 	SequenceNumber   int
-	Data             map[string][]byte // Key-value data for the record
+	Data             map[string][]byte
 }
 
 type Stream struct {
@@ -20,9 +24,9 @@ type Stream struct {
 	// Maps record ID to its corresponding list element for O(1) lookups
 	recordMap  map[string]*list.Element // Fast lookup of records by ID
 	recordList *list.List               // Doubly linked list for ordered storage
+	maxLen     int                      // Maximum number of entries to keep, also in REDIS
 }
 
-// Maps stream names to corresponding stream object
 type StreamsManager struct {
 	Streams map[string]*Stream // Map of stream names to Stream objects, for faster lookups
 }
@@ -31,6 +35,7 @@ func newStream() *Stream {
 	return &Stream{
 		recordMap:  make(map[string]*list.Element),
 		recordList: list.New(),
+		maxLen:     DefaultStreamMaxLen,
 	}
 }
 
@@ -86,16 +91,29 @@ func (sm *StreamsManager) XAdd(streamName, id string, data map[string][]byte) (S
 	stream.mu.Lock()
 	defer stream.mu.Unlock()
 
-	StreamRecord := StreamRecord{
+	newStreamRecord := StreamRecord{
 		Id:               newId,
 		MillisecondsTime: newMillisecondsTime,
 		SequenceNumber:   newSequenceNumber,
 		Data:             data,
 	}
-	element := stream.recordList.PushBack(&StreamRecord)
+	element := stream.recordList.PushBack(&newStreamRecord)
 	stream.recordMap[newId] = element
 
-	return StreamRecord, true, nil
+	// remove the oldest entries when len exceeds the specified max length for a stream
+	if stream.recordList.Len() > stream.maxLen {
+		numToRemove := stream.recordList.Len() - stream.maxLen
+		for i := 0; i < numToRemove; i++ {
+			oldest := stream.recordList.Front()
+			if oldest != nil {
+				record := oldest.Value.(*StreamRecord)
+				delete(stream.recordMap, record.Id)
+				stream.recordList.Remove(oldest)
+			}
+		}
+	}
+
+	return newStreamRecord, true, nil
 }
 
 /*
@@ -178,8 +196,6 @@ func (sm *StreamsManager) XRead(streamName, startId string) ([]StreamRecord, err
 		return nil, err
 	}
 
-	// find the first record that is greater than the startId
-
 	stream := sm.Streams[streamName]
 
 	stream.mu.RLock()
@@ -195,6 +211,7 @@ func (sm *StreamsManager) XRead(streamName, startId string) ([]StreamRecord, err
 		current = startElem
 	} else {
 
+		// find the first record that is greater than the startId
 		for rec := stream.recordList.Front(); rec != nil; rec = rec.Next() {
 			record := rec.Value.(*StreamRecord)
 			if record.MillisecondsTime > msTime || (record.MillisecondsTime == msTime && record.SequenceNumber > seqNum) {

@@ -24,8 +24,17 @@ var (
 		"KEYS":   handleKeys,   // returns all the keys that match the pattern
 		"TYPE":   handleType,   // returns the type of the key
 		"XADD":   handleXAdd,   // adds a new entry to a stream, creates a stream if it doesn't exist
-		"XRANGE": handleXRange, // gets a range of entries from a stream, inclusive of the start and end IDs, takes in start and end IDs as arguments
-		"XREAD":  handleXRead,  // gets a range of entries from a stream that are strictly greater than the start id, exclusive of start id, takes in start id as argument, can also read from multiple streams
+		"XRANGE": handleXRange,
+		// gets a range of entries from a stream,
+		// inclusive of the start and end IDs,
+		// takes in start and end IDs as arguments,
+		// cannot read from multiple streams
+		"XREAD": handleXRead,
+		// gets a range of entries from a stream
+		// that are strictly greater than the start id,
+		// exclusive of start id, takes in start id as argument,
+		// can also read from multiple streams(this is good when we want to read from multiple streams using just one command)
+		// also has blocking options(that is the command is blocked until the given time specified in command and during that time if entries come they will be listened nearly instantly.)
 	}
 )
 
@@ -97,7 +106,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 				}
 				expiration = time.Duration(seconds) * time.Second
-				i++ // skip the next item, which will be the "value" for "EX" which we read above
+				i++ // skip the next item, which will be the "value" for "EX"
 			}
 		case "PX":
 			if i+1 < len(args) {
@@ -107,12 +116,11 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 				}
 				expiration = time.Duration(milliseconds) * time.Millisecond
-				i++ // skip the next item, which will be the "value" for "PX" which we read above
+				i++ // skip the next item, which will be the "value" for "PX"
 			}
 		case "NX":
 			_, exists := store.Store.Get(key)
 			if exists {
-
 				return writer.Encode(&RESP.RESPMessage{
 					Type: RESP.BulkString,
 					Len:  -1,
@@ -209,7 +217,7 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 			}
 
 		default:
-			// Return an empty array for unknown parameters
+
 			response = []RESP.RESPMessage{}
 		}
 
@@ -324,7 +332,6 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
 	}
 
-	// Convert RESP messages to map[string][]byte
 	dataMap := make(map[string][]byte)
 	for i := 2; i < len(args); i += 2 {
 		key := string(args[i].Value)
@@ -396,7 +403,6 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
 
-	// default values
 	blockMs := -1
 	count := -1
 	streamStartIdx := -1

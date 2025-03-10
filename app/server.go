@@ -37,7 +37,6 @@ func main() {
 		log.Println("No RDB file found at:", rdbPath)
 	}
 
-	// Start server
 	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", HOST, PORT))
 	if err != nil {
 		fmt.Println("Failed to bind to port", PORT)
@@ -80,7 +79,6 @@ func handleConnection(conn net.Conn) {
 		cmd := string(msg.ArrayElem[0].Value)
 		args := msg.ArrayElem[1:]
 
-		// execute the command
 		if err := Handlers.ExecuteCommand(writer, cmd, args); err != nil {
 			fmt.Println("Error executing command:", err)
 			return

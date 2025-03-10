@@ -37,16 +37,14 @@ func (kv *KeyValueStore) Set(key string, value []byte, expiration time.Duration)
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	// add value.
 	storedValue := StoredValue{
 		value: value,
 	}
-	// add expiration, if provided.
+
 	if expiration > 0 {
 		storedValue.expiration = time.Now().Add(expiration)
 	}
 
-	// finally map value to the key.
 	kv.store[key] = storedValue
 }
 
@@ -60,7 +58,6 @@ func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 
-	// check for key, returns nil if absent.
 	storedValue, exists := kv.store[key]
 	if !exists {
 		return nil, false
@@ -72,7 +69,6 @@ func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 		return nil, false
 	}
 
-	// return the value
 	return storedValue.value, true
 }
 
@@ -87,7 +83,7 @@ func (kv *KeyValueStore) GetKeys(pattern string) []string {
 
 	var keys []string
 	for key, value := range kv.store {
-		// Skip expired keys
+
 		if !value.expiration.IsZero() && time.Now().After(value.expiration) {
 			continue
 		}
