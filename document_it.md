@@ -1,5 +1,3 @@
-# <ins>Learnings</ins>
-
 ## <ins>1. I/O multiplexing</ins>
 
 I/O (Input/Output) operations refer to any action where a program reads data from or writes data to an external source, such as:
@@ -83,12 +81,13 @@ Redis generally uses RESP as a request-response protocol in the following way:
 
 Persistence refers to the writing of data to durable storage, such as a solid-state disk (SSD).
 
-1. RDB (Redis Database): RDB persistence performs point-in-time snapshots of your dataset at specified intervals.
+1. RDB (Redis Database): RDB persistence performs point-in-time snapshots of your dataset at specified intervals. A dataset refers to all the key-value pairs stored in memory at a given time
 
    An RDB file is a point-in-time snapshot of a Redis dataset. When RDB persistence is enabled, the Redis server syncs its in-memory state with an RDB file, by doing the following:
 
    1. On startup, the Redis server loads the data from the RDB file.
    2. While running, the Redis server periodically takes new snapshots of the dataset, in order to update the RDB file.
+   3. Redis RDB snapshots can be triggered automatically (based on time + number of changes) , manually , or disabled them.
 
    RDB files are perfect for backups.
 
@@ -169,3 +168,23 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
        1. block ms, blocks util that msTime and any new entries will be listened nearly instantly.
        2. block with 0ms, will be blocked forever and any new entries will be listened nearly instantly.
        3. $ as the id tells redis to read from the new entries after this xread command has been executed.
+
+### <ins>6. Redis</ins>
+
+Redis is designed for both speed and durability, combining the best of in-memory data storage with optional persistence.
+
+1. In-Memory for Speed – All data is stored in RAM, making read and write operations extremely fast.
+
+2. Single-Threaded for Efficiency – Avoids context switching overhead of multi-threaded architectures, relying on efficient I/O multiplexing.
+
+3. Optimized Data Structures – Uses lists, sets, hash tables, and sorted sets, ensuring O(1) or O(log N) time complexity for most operations.
+
+4. Persistence Mechanisms for Durability:
+
+   1. RDB (Redis Database Backup): Takes snapshots at specified intervals and saves them to disk.
+   2. AOF (Append-Only File): Logs every write operation, replaying them at startup to restore data.
+   3. Hybrid Approach: You can use both RDB and AOF for better reliability.
+
+   4. Restores Data on Restart – If persistence is enabled, Redis loads data from RDB or AOF on startup.
+
+5. Non-Blocking Replication – Redis supports asynchronous replication, ensuring that read operations are not slowed down by replication processes.
