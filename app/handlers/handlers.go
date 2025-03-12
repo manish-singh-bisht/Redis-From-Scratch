@@ -455,8 +455,12 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		streamName := string(streamNames[i].Value)
 		startId := string(streamIds[i].Value)
 
-		if blockMs > 0 {
-			streamRecords, err = store.StreamManager.XReadBlock(streamName, startId, blockMs)
+		if blockMs >= 0 {
+			var noTimeout bool = false
+			if blockMs == 0 {
+				noTimeout = true
+			}
+			streamRecords, err = store.StreamManager.XReadBlock(streamName, startId, blockMs, noTimeout)
 		} else {
 			streamRecords, err = store.StreamManager.XRead(streamName, startId)
 		}

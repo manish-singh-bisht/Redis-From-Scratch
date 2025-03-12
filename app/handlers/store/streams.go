@@ -241,7 +241,7 @@ func (sm *StreamsManager) XRead(streamName, startId string) ([]StreamRecord, err
 /*
 when a xread with block comes a new subscriber is added to the map and then it first reads from the id specified and then waits for new incoming , when a another xadd happens during that time, the notifySubscribers is basically calling all the subscribers in the map(this calling is basically a way of just saying that a new has arrived and not what has arrived) this way the blocking subsribers in the xreadblock previously will now re-read and thus display the new entry
 */
-func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int) ([]StreamRecord, error) {
+func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int, noTimeout bool) ([]StreamRecord, error) {
 	if !sm.IsStreamKey(streamName) {
 		return nil, fmt.Errorf("ERR The stream specified does not exist")
 	}
@@ -251,8 +251,11 @@ func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int) ([
 	notify := stream.subscribe()     // add to map, and get channel
 	defer stream.unsubscribe(notify) // remove from map, and close channel
 
-	deadline := time.NewTimer(time.Duration(blockMs) * time.Millisecond)
-	defer deadline.Stop()
+	var deadline *time.Timer
+	if !noTimeout {
+		deadline = time.NewTimer(time.Duration(blockMs) * time.Millisecond)
+		defer deadline.Stop()
+	}
 
 	for {
 		records, err := sm.XRead(streamName, startId)
@@ -261,6 +264,11 @@ func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int) ([
 		}
 		if len(records) > 0 {
 			return records, nil
+		}
+
+		if noTimeout {
+			<-notify // just wait for notification
+			continue
 		}
 
 		// block until either notification or timeout
