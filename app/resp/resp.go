@@ -283,7 +283,7 @@ func (w *Writer) encodeInteger(msg *RESPMessage) error {
 */
 func (w *Writer) encodeBulkString(msg *RESPMessage) error {
 	if msg.Value == nil {
-		return w.encodeNil()
+		return w.EncodeNil()
 	}
 
 	if err := w.writer.WriteByte(BulkString); err != nil {
@@ -333,16 +333,5 @@ func (w *Writer) encodeArray(msg *RESPMessage) error {
 		}
 	}
 
-	return w.writer.Flush()
-}
-
-/*
- 	* encodeNil encodes a nil value
-	* @return error - the error if there is one
-*/
-func (w *Writer) encodeNil() error {
-	if _, err := w.writer.Write([]byte("$-1\r\n")); err != nil {
-		return err
-	}
 	return w.writer.Flush()
 }

@@ -32,7 +32,7 @@ type IDValidator func(string) bool
 
 var operationValidators = map[OperationType]IDValidator{
 	OperationTypeRange: isRangeQueryMarker,
-	OperationTypeRead:  func(id string) bool { return false }, // for no specific checks always return false
+	OperationTypeRead:  func(id string) bool { return false }, // for no specific checks always return false for now
 }
 
 /**
@@ -311,7 +311,7 @@ func (sm *StreamsManager) generateNextId(lastRecord *StreamRecord, msTime int64,
 func (sm *StreamsManager) CreateStreamMessages(records []StreamRecord) []RESP.RESPMessage {
 	entries := make([]RESP.RESPMessage, len(records))
 	for i, record := range records {
-		// Create key-value pairs array
+		// Create key-value pairs array, thus record.Data*2
 		kvPairs := make([]RESP.RESPMessage, 0, len(record.Data)*2)
 		for key, value := range record.Data {
 			kvPairs = append(kvPairs,
@@ -346,4 +346,48 @@ func (sm *StreamsManager) CreateStreamMessages(records []StreamRecord) []RESP.RE
 		}
 	}
 	return entries
+}
+
+/*
+ 	* subscribe subscribes a subscriber to the stream, adds a channel to the map and returns the channel
+	* @return chan struct{} - the channel to subscribe to
+*/
+func (s *Stream) subscribe() chan struct{} {
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
+	// keeping no locks here because we use it in the parent function, but what if we want to use it in other functions and that has no locks?
+	ch := make(chan struct{}, 1)
+	s.subscribers[ch] = struct{}{}
+	return ch
+}
+
+/*
+ 	* unsubscribe unsubscribes a subscriber from the stream, deletes the channel from the map and closes the channel
+	* @param ch chan struct{} - the channel to unsubscribe
+*/
+func (s *Stream) unsubscribe(ch chan struct{}) {
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
+	// keeping no locks here because we use it in the parent function, but what if we want to use it in other functions and that has no locks?
+
+	delete(s.subscribers, ch)
+	close(ch)
+}
+
+/*
+ 	* notifySubscribers notifies all subscribers of a new record
+	* @param s *Stream - the stream to notify subscribers of
+*/
+func (s *Stream) notifySubscribers() {
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
+	// keeping no locks here because we use it in the parent function, but what if we want to use it in other functions and that has no locks?
+
+	for ch := range s.subscribers {
+
+		select {
+		case ch <- struct{}{}:
+		default: // missing a notification is okay because the subscriber will check for new records anyway
+		}
+	}
 }

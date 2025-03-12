@@ -121,19 +121,12 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		case "NX":
 			_, exists := store.Store.Get(key)
 			if exists {
-				return writer.Encode(&RESP.RESPMessage{
-					Type: RESP.BulkString,
-					Len:  -1,
-				})
+				return writer.EncodeNil()
 			}
 		case "XX":
 			_, exists := store.Store.Get(key)
 			if !exists {
-
-				return writer.Encode(&RESP.RESPMessage{
-					Type: RESP.BulkString,
-					Len:  -1,
-				})
+				return writer.EncodeNil()
 			}
 		default:
 			return HandleError(writer, []byte("ERR syntax error"))
@@ -168,10 +161,7 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 	if !exists {
 
-		return writer.Encode(&RESP.RESPMessage{
-			Type: RESP.BulkString,
-			Len:  -1,
-		})
+		return writer.EncodeNil()
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
@@ -341,8 +331,12 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 	streamRecord, ok, err := store.StreamManager.XAdd(streamName, id, dataMap)
 
-	if !ok && err != nil {
+	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
+	}
+
+	if !ok {
+		return HandleError(writer, []byte("ERR failed to add entry to stream"))
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
@@ -452,16 +446,29 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	streamNames := args[streamStartIdx : streamStartIdx+numStreams]
 	streamIds := args[streamStartIdx+numStreams:]
 
-	// process each stream
+	var streamRecords []store.StreamRecord
+	var err error
+
+	// Process each stream
 	finalResponse := make([]RESP.RESPMessage, 0, numStreams)
 	for i := 0; i < numStreams; i++ {
 		streamName := string(streamNames[i].Value)
 		startId := string(streamIds[i].Value)
 
-		streamRecords, err := store.StreamManager.XRead(streamName, startId)
+		if blockMs > 0 {
+			streamRecords, err = store.StreamManager.XReadBlock(streamName, startId, blockMs)
+		} else {
+			streamRecords, err = store.StreamManager.XRead(streamName, startId)
+		}
+
 		if err != nil {
 			fmt.Print(err.Error())
 			continue
+		}
+
+		// no records found in blocking mode, return nil
+		if blockMs > 0 && len(streamRecords) == 0 {
+			return writer.EncodeNil()
 		}
 
 		if len(streamRecords) == 0 {

@@ -117,3 +117,14 @@ func (r *Reader) convertArrayToBytesArray(elements []RESPMessage) ([]byte, error
 	}
 	return result, nil
 }
+
+/*
+ 	* encodeNil encodes a nil value
+	* @return error - the error if there is one
+*/
+func (w *Writer) EncodeNil() error {
+	if _, err := w.writer.Write([]byte("$-1\r\n")); err != nil {
+		return err
+	}
+	return w.writer.Flush()
+}

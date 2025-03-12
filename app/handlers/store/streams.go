@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"fmt"
 	"sync"
+	"time"
 )
 
 var StreamManager = newStreamsManager()
@@ -13,7 +14,7 @@ const (
 )
 
 type StreamRecord struct {
-	Id               string // store ID (Milliseconds-SequenceNumber), this is most probably done to make it monotonically increasing, not completely dependent on the time(due to time-of-the-day clock skew), not sure though
+	Id               string // store ID (Milliseconds-SequenceNumber), this combination is most probably done to make it monotonically increasing, not completely dependent on the time(due to time-of-the-day clock skew), not sure though
 	MillisecondsTime int64
 	SequenceNumber   int
 	Data             map[string][]byte
@@ -22,9 +23,11 @@ type StreamRecord struct {
 type Stream struct {
 	mu sync.RWMutex
 	// Maps record ID to its corresponding list element for O(1) lookups
-	recordMap  map[string]*list.Element // Fast lookup of records by ID
-	recordList *list.List               // Doubly linked list for ordered storage
-	maxLen     int                      // Maximum number of entries to keep, also in REDIS
+	recordMap   map[string]*list.Element   // Fast lookup of records by ID
+	recordList  *list.List                 // Doubly linked list for ordered storage
+	maxLen      int                        // Maximum number of entries to keep, also in REDIS
+	subscribers map[chan struct{}]struct{} // map of channels to notify of new entries, for faster lookups during sending and removing of subscribers
+
 }
 
 type StreamsManager struct {
@@ -33,9 +36,10 @@ type StreamsManager struct {
 
 func newStream() *Stream {
 	return &Stream{
-		recordMap:  make(map[string]*list.Element),
-		recordList: list.New(),
-		maxLen:     DefaultStreamMaxLen,
+		recordMap:   make(map[string]*list.Element),
+		recordList:  list.New(),
+		maxLen:      DefaultStreamMaxLen,
+		subscribers: make(map[chan struct{}]struct{}),
 	}
 }
 
@@ -112,6 +116,8 @@ func (sm *StreamsManager) XAdd(streamName, id string, data map[string][]byte) (S
 			}
 		}
 	}
+
+	stream.notifySubscribers()
 
 	return newStreamRecord, true, nil
 }
@@ -230,4 +236,39 @@ func (sm *StreamsManager) XRead(streamName, startId string) ([]StreamRecord, err
 
 	return result, nil
 
+}
+
+/*
+when a xread with block comes a new subscriber is added to the map and then it first reads from the id specified and then waits for new incoming , when a another xadd happens during that time, the notifySubscribers is basically calling all the subscribers in the map(this calling is basically a way of just saying that a new has arrived and not what has arrived) this way the blocking subsribers in the xreadblock previously will now re-read and thus display the new entry
+*/
+func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int) ([]StreamRecord, error) {
+	if !sm.IsStreamKey(streamName) {
+		return nil, fmt.Errorf("ERR The stream specified does not exist")
+	}
+
+	stream := sm.Streams[streamName]
+
+	notify := stream.subscribe()     // add to map, and get channel
+	defer stream.unsubscribe(notify) // remove from map, and close channel
+
+	deadline := time.NewTimer(time.Duration(blockMs) * time.Millisecond)
+	defer deadline.Stop()
+
+	for {
+		records, err := sm.XRead(streamName, startId)
+		if err != nil {
+			return nil, err
+		}
+		if len(records) > 0 {
+			return records, nil
+		}
+
+		// block until either notification or timeout
+		select {
+		case <-notify:
+			continue // check for records again
+		case <-deadline.C:
+			return nil, nil // return nil on timeout
+		}
+	}
 }
