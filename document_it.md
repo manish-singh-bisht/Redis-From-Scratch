@@ -148,7 +148,8 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
 4. "GET": gets a value from a key
 5. "CONFIG": gets the configuration of the server
 6. "KEYS": returns all the keys that match the pattern
-7. "TYPE": returns the type of the key
+7. "TYPE": returns the type of the key,
+   1. return stream if the key is a stream key
 8. "XADD": adds a new entry to a stream, creates a stream if it doesn't exist
 9. "XRANGE":
 
@@ -156,6 +157,8 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
    2. inclusive of the start and end IDs,
    3. takes in start and end IDs as arguments,
    4. cannot read from multiple streams
+   5. "-" as the start id, means bring all the entries from the start of the stream
+   6. "+" as the end id, means bring all the entries till the end of the stream
 
 10. "XREAD":
     1. gets a range of entries from a stream
@@ -163,3 +166,6 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
     3. exclusive of start id, takes in start id as argument,
     4. can also read from multiple streams(this is good when we want to read from multiple streams using just one command)
     5. also has blocking options(that is the command is blocked until the given time, in ms, specified in command and during that time if entries come they will be listened nearly instantly.)>
+       1. block ms, blocks util that msTime and any new entries will be listened nearly instantly.
+       2. block with 0ms, will be blocked forever and any new entries will be listened nearly instantly.
+       3. $ as the id tells redis to read from the new entries after this xread command has been executed.

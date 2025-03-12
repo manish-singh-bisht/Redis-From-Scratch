@@ -246,6 +246,21 @@ func (sm *StreamsManager) XReadBlock(streamName, startId string, blockMs int, no
 		return nil, fmt.Errorf("ERR The stream specified does not exist")
 	}
 
+	if startId == StreamIDLast {
+		stream := sm.Streams[streamName]
+		stream.mu.RLock()
+		lastElem := stream.recordList.Back()
+		stream.mu.RUnlock()
+
+		if lastElem != nil {
+			lastRecord := lastElem.Value.(*StreamRecord)
+			startId = lastRecord.Id
+		} else {
+
+			startId = StreamIDMin
+		}
+	}
+
 	stream := sm.Streams[streamName]
 
 	notify := stream.subscribe()     // add to map, and get channel

@@ -16,25 +16,34 @@ type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
 
 var (
 	handlers = map[string]commandHandler{
-		"PING":   handlePing,   // responds with "PONG"
-		"ECHO":   handleEcho,   // echoes a message, that is return what is passed in
-		"SET":    handleSet,    // sets a key to a value, with optional expiration time, updates the value if the key already exists
-		"GET":    handleGet,    // gets a value from a key
-		"CONFIG": handleConfig, // gets the configuration of the server
-		"KEYS":   handleKeys,   // returns all the keys that match the pattern
-		"TYPE":   handleType,   // returns the type of the key
-		"XADD":   handleXAdd,   // adds a new entry to a stream, creates a stream if it doesn't exist
+		"PING":   handlePing, // responds with "PONG"
+		"ECHO":   handleEcho, // echoes a message, that is return what is passed in
+		"SET":    handleSet,  // sets a key to a value, with optional expiration time, updates the value if the key already exists
+		"GET":    handleGet,  // gets a value from a key
+		"CONFIG": handleConfig,
+		// gets the configuration of the server,
+		//--------currently only dir and dbfilename are supported--------
+
+		"KEYS": handleKeys,
+		// returns all the keys that match the pattern,
+		//--------currently only * is supported--------
+
+		"TYPE":   handleType, // returns the type of the key
+		"XADD":   handleXAdd, // adds a new entry to a stream, creates a stream if it doesn't exist
 		"XRANGE": handleXRange,
 		// gets a range of entries from a stream,
 		// inclusive of the start and end IDs,
 		// takes in start and end IDs as arguments,
 		// cannot read from multiple streams
+		// --------currently only xrange is supported with + and - --------
+
 		"XREAD": handleXRead,
 		// gets a range of entries from a stream
 		// that are strictly greater than the start id,
 		// exclusive of start id, takes in start id as argument,
 		// can also read from multiple streams(this is good when we want to read from multiple streams using just one command)
 		// also has blocking options(that is the command is blocked until the given time specified in command and during that time if entries come they will be listened nearly instantly.)
+		// --------currently only xread, blocking with and without timeout is supported, $ as id--------
 	}
 )
 

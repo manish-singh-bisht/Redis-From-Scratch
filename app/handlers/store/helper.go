@@ -21,6 +21,7 @@ const (
 	StreamIDWildcard = "*"
 	RangeQueryStart  = "-"
 	RangeQueryEnd    = "+"
+	StreamIDLast     = "$"
 )
 
 const (
