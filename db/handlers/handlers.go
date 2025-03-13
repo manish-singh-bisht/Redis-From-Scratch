@@ -535,6 +535,13 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	})
 }
 
+/*
+ 	* handleIncr handles the INCR command, increments the value of a key
+	* @param writer *RESP.Writer - the writer to write the response to
+	* @param args []RESP.RESPMessage - the arguments for the command
+	* @return error - the error if there is one
+	* @return integer - the new value of the key
+*/
 func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'INCR' command"))

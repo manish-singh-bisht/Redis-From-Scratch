@@ -160,6 +160,7 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
    6. "+" as the end id, means bring all the entries till the end of the stream
 
 10. "XREAD":
+
     1. gets a range of entries from a stream
     2. that are strictly greater than the start id,
     3. exclusive of start id, takes in start id as argument,
@@ -168,6 +169,8 @@ Persistence refers to the writing of data to durable storage, such as a solid-st
        1. block ms, blocks util that msTime and any new entries will be listened nearly instantly.
        2. block with 0ms, will be blocked forever and any new entries will be listened nearly instantly.
        3. $ as the id tells redis to read from the new entries after this xread command has been executed.
+
+11. "INCR": increments the value of a key by 1, if the key doesn't exist, it will be set to 1
 
 ### <ins>6. Redis</ins>
 
