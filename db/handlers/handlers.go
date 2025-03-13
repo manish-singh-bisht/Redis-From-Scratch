@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	store "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers/store"
-	config "github.com/manish-singh-bisht/Redis-From-Scratch/app/persistence"
-	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
+	config "github.com/manish-singh-bisht/Redis-From-Scratch/db/persistence"
+	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
+	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
 )
 
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error

@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"flag"
@@ -8,15 +8,15 @@ import (
 	"os"
 	"path/filepath"
 
-	Handlers "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers"
-	config "github.com/manish-singh-bisht/Redis-From-Scratch/app/persistence"
-	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
+	Handlers "github.com/manish-singh-bisht/Redis-From-Scratch/db/handlers"
+	config "github.com/manish-singh-bisht/Redis-From-Scratch/db/persistence"
+	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 )
 
 var PORT = 6379
 var HOST = "0.0.0.0"
 
-func main() {
+func DbStart() {
 
 	dir := flag.String("dir", ".", "RDB file directory") //name defaultValues description
 	dbFilename := flag.String("dbfilename", "dump.rdb", "RDB filename")

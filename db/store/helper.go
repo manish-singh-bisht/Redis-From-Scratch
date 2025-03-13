@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
+	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 )
 
 type OperationType string

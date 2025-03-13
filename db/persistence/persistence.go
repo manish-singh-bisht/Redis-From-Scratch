@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	store "github.com/manish-singh-bisht/Redis-From-Scratch/app/handlers/store"
+	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
 )
 
 var ErrInvalidHeader = errors.New("invalid RDB header")

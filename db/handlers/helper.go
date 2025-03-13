@@ -1,6 +1,6 @@
 package handlers
 
-import RESP "github.com/manish-singh-bisht/Redis-From-Scratch/app/resp"
+import RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 
 /*
  	* HandleError handles an error
