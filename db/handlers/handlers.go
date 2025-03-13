@@ -44,6 +44,8 @@ var (
 		// can also read from multiple streams(this is good when we want to read from multiple streams using just one command)
 		// also has blocking options(that is the command is blocked until the given time specified in command and during that time if entries come they will be listened nearly instantly.)
 		// --------currently only xread, blocking with and without timeout is supported, $ as id--------
+
+		"INCR": handleIncr, // increments the value of a key, value is integer, by 1
 	}
 )
 
@@ -530,6 +532,39 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		Type:      RESP.Array,
 		Len:       len(finalResponse),
 		ArrayElem: finalResponse,
+	})
+}
+
+func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	if len(args) != 1 {
+		return HandleError(writer, []byte("ERR wrong number of arguments for 'INCR' command"))
+	}
+
+	key := string(args[0].Value)
+	value, exists := store.Store.Get(key)
+
+	var newValue int
+	if !exists {
+		// if the key doesn't exist, set to 1
+		store.Store.Set(key, []byte("1"), 0)
+		return writer.Encode(&RESP.RESPMessage{
+			Type:  RESP.Integer,
+			Value: []byte("1"),
+		})
+	}
+
+	// if the existing value is an integer or not
+	currentValue, err := strconv.Atoi(string(value))
+	if err != nil {
+		return HandleError(writer, []byte("ERR value is not an integer or out of range"))
+	}
+
+	newValue = currentValue + 1
+	store.Store.Set(key, []byte(strconv.Itoa(newValue)), 0)
+
+	return writer.Encode(&RESP.RESPMessage{
+		Type:  RESP.Integer,
+		Value: []byte(strconv.Itoa(newValue)),
 	})
 }
 
