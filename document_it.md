@@ -191,3 +191,25 @@ Redis is designed for both speed and durability, combining the best of in-memory
    4. Restores Data on Restart – If persistence is enabled, Redis loads data from RDB or AOF on startup.
 
 5. Non-Blocking Replication – Redis supports asynchronous replication, ensuring that read operations are not slowed down by replication processes.
+
+### <ins>7. Redis Transactions</ins>
+
+Redis Transactions execute a group of commands in a single step using MULTI, EXEC, DISCARD, and WATCH.
+
+1. Key Guarantees:
+
+   1. Isolation: All commands in a transaction run sequentially, without interference from other clients.
+   2. Execution Control: If a client disconnects before EXEC, no operations are performed. Once EXEC is called, all commands execute.
+   3. For AOF persistence, Redis writes transactions in a single syscall. If a crash causes partial writes, redis-check-aof can repair the log to restore consistency.
+
+2. Redis transactions are executed serially, one at a time, ensuring that no two transactions interfere with each other. A request sent by another client will never be served in the middle of the execution of a Redis Transaction.
+
+3. Transactions in Redis are initiated with the MULTI command, followed by a series of operations, and concluded with EXEC to execute all queued commands.
+
+4. If an error occurs in one of the commands inside a transaction, Redis does not roll back the already executed commands; all valid commands still execute.
+
+5. The DISCARD command can be used to abort a transaction before execution, clearing all queued commands.
+
+6. The WATCH command can be used for optimistic locking, allowing conditional execution of a transaction only if a watched key remains unchanged.
+
+7. Redis transactions do not support rollback like SQL databases, so careful validation of commands is necessary before execution.
