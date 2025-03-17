@@ -214,4 +214,10 @@ Redis Transactions execute a group of commands in a single step using MULTI, EXE
 
 6. The WATCH command can be used for optimistic locking, allowing conditional execution of a transaction only if a watched key remains unchanged.
 
+   1. WATCH is used to provide a check-and-set (CAS) behavior to Redis transactions. CAS is, read the value, perform calculations, and before writing the value back, check if the value has changed, if it has, then the transaction is aborted, else the transaction is executed.
+
+   2. WATCHed keys are monitored in order to detect changes against them. If at least one watched key is modified before the EXEC command, the whole transaction aborts, and EXEC returns a Null reply to notify that the transaction failed.
+
+   3. When EXEC is called, all keys are UNWATCHed, regardless of whether the transaction was aborted or not. Also when a client connection is closed, everything gets UNWATCHed.
+
 7. Redis transactions do not support rollback like SQL databases, so careful validation of commands is necessary before execution.
