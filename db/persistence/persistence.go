@@ -159,7 +159,7 @@ func (p *RDBParser) addKeyValue(r *bufio.Reader) error {
 	}
 
 	// Use the global store from handlers package
-	store.Store.Set(key, []byte(value), 0)
+	store.GetStore().Set(key, []byte(value), 0)
 	return nil
 }
 
@@ -215,7 +215,7 @@ func (p *RDBParser) addKeyValueWithTTL(kv_type byte, r *bufio.Reader) error {
 	}
 
 	// Use the global store from handlers package
-	store.Store.Set(key, []byte(value), expireIn)
+	store.GetStore().Set(key, []byte(value), expireIn)
 	return nil
 }
 

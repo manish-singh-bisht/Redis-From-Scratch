@@ -130,12 +130,12 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 				i++ // skip the next item, which will be the "value" for "PX"
 			}
 		case "NX":
-			_, exists := store.Store.Get(key)
+			_, exists := store.GetStore().Get(key)
 			if exists {
 				return writer.EncodeNil()
 			}
 		case "XX":
-			_, exists := store.Store.Get(key)
+			_, exists := store.GetStore().Get(key)
 			if !exists {
 				return writer.EncodeNil()
 			}
@@ -145,7 +145,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		}
 	}
 
-	store.Store.Set(key, value, expiration)
+	store.GetStore().Set(key, value, expiration)
 
 	return writer.Encode(&RESP.RESPMessage{
 		Type:  RESP.SimpleString,
@@ -168,7 +168,7 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	key := string(args[0].Value)
-	value, exists := store.Store.Get(key)
+	value, exists := store.GetStore().Get(key)
 
 	if !exists {
 
@@ -248,7 +248,7 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	pattern := string(args[0].Value)
-	keys := store.Store.GetKeys(pattern)
+	keys := store.GetStore().GetKeys(pattern)
 
 	// Create response array
 	response := make([]RESP.RESPMessage, len(keys))
@@ -281,7 +281,7 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	inputKey := string(args[0].Value)
-	keys := store.Store.GetKeys("*")
+	keys := store.GetStore().GetKeys("*")
 
 	var typeOfKey string
 
@@ -294,7 +294,7 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	if typeOfKey == "" {
-		isStream := store.StreamManager.IsStreamKey(inputKey)
+		isStream := store.GetStreamManager().IsStreamKey(inputKey)
 		if isStream {
 			typeOfKey = "stream"
 		}
@@ -340,7 +340,7 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		dataMap[key] = value
 	}
 
-	streamRecord, ok, err := store.StreamManager.XAdd(streamName, id, dataMap)
+	streamRecord, ok, err := store.GetStreamManager().XAdd(streamName, id, dataMap)
 
 	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
@@ -373,7 +373,7 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	startId := string(args[1].Value)
 	endId := string(args[2].Value)
 
-	streamRecords, err := store.StreamManager.XRange(streamName, startId, endId)
+	streamRecords, err := store.GetStreamManager().XRange(streamName, startId, endId)
 	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
 	}
@@ -395,7 +395,7 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	//   ]
 	// ]
 
-	entries := store.StreamManager.CreateStreamMessages(streamRecords)
+	entries := store.GetStreamManager().CreateStreamMessages(streamRecords)
 	return writer.Encode(&RESP.RESPMessage{
 		Type:      RESP.Array,
 		Len:       len(entries),
@@ -471,9 +471,9 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 			if blockMs == 0 {
 				noTimeout = true
 			}
-			streamRecords, err = store.StreamManager.XReadBlock(streamName, startId, blockMs, noTimeout)
+			streamRecords, err = store.GetStreamManager().XReadBlock(streamName, startId, blockMs, noTimeout)
 		} else {
-			streamRecords, err = store.StreamManager.XRead(streamName, startId)
+			streamRecords, err = store.GetStreamManager().XRead(streamName, startId)
 		}
 
 		if err != nil {
@@ -508,7 +508,7 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		//     ]
 		//   ]
 		// ]
-		entries := store.StreamManager.CreateStreamMessages(streamRecords)
+		entries := store.GetStreamManager().CreateStreamMessages(streamRecords)
 		streamResponse := RESP.RESPMessage{
 			Type: RESP.Array,
 			Len:  2,
@@ -548,12 +548,12 @@ func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	key := string(args[0].Value)
-	value, exists := store.Store.Get(key)
+	value, exists := store.GetStore().Get(key)
 
 	var newValue int
 	if !exists {
 		// if the key doesn't exist, set to 1
-		store.Store.Set(key, []byte("1"), 0)
+		store.GetStore().Set(key, []byte("1"), 0)
 		return writer.Encode(&RESP.RESPMessage{
 			Type:  RESP.Integer,
 			Value: []byte("1"),
@@ -567,7 +567,7 @@ func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	newValue = currentValue + 1
-	store.Store.Set(key, []byte(strconv.Itoa(newValue)), 0)
+	store.GetStore().Set(key, []byte(strconv.Itoa(newValue)), 0)
 
 	return writer.Encode(&RESP.RESPMessage{
 		Type:  RESP.Integer,

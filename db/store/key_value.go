@@ -15,7 +15,7 @@ type KeyValueStore struct {
 	store map[string]StoredValue
 }
 
-var Store = NewKeyValueStore()
+var storeInstance *KeyValueStore
 
 /*
  	* NewKeyValueStore creates a new KeyValueStore
@@ -25,6 +25,17 @@ func NewKeyValueStore() *KeyValueStore {
 	return &KeyValueStore{
 		store: make(map[string]StoredValue),
 	}
+}
+
+/*
+ 	* GetStore returns the singleton instance of KeyValueStore
+	* @return *KeyValueStore - the singleton instance of KeyValueStore
+*/
+func GetStore() *KeyValueStore {
+	if storeInstance == nil {
+		storeInstance = NewKeyValueStore()
+	}
+	return storeInstance
 }
 
 /*

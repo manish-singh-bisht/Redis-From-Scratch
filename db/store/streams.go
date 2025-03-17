@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var StreamManager = newStreamsManager()
+var streamManagerInstance *StreamsManager
 
 const (
 	DefaultStreamMaxLen = 1000
@@ -41,6 +41,17 @@ func newStream() *Stream {
 		maxLen:      DefaultStreamMaxLen,
 		subscribers: make(map[chan struct{}]struct{}),
 	}
+}
+
+/*
+ 	* GetStreamManager returns the singleton instance of StreamsManager
+	* @return *StreamsManager - the singleton instance of StreamsManager
+*/
+func GetStreamManager() *StreamsManager {
+	if streamManagerInstance == nil {
+		streamManagerInstance = newStreamsManager()
+	}
+	return streamManagerInstance
 }
 
 func newStreamsManager() *StreamsManager {

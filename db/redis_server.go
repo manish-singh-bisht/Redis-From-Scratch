@@ -50,7 +50,7 @@ func DbStart() {
 			fmt.Println("Error accepting connection:", err)
 			continue
 		}
-		// TODO make an event loop
+		// TODO make an event loop, reactor pattern??
 		go handleConnection(conn)
 	}
 }

@@ -15,6 +15,8 @@ It is more efficient because it avoids blocking a thread on a single I/O operati
 
 some blocking commands could be reading from a file, accept for a new socket connection, etc
 
+Event loop is a program that executes tasks in a non blocking way for multiple clients. I/O multiplexing is the technique used to make the event loop work.
+
 ### Common system calls used for I/O multiplexing:
 
 0.  select: Monitors multiple file descriptors for readiness.
