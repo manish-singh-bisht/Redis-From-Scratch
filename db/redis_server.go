@@ -7,68 +7,78 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	Handlers "github.com/manish-singh-bisht/Redis-From-Scratch/db/handlers"
 	config "github.com/manish-singh-bisht/Redis-From-Scratch/db/persistence"
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
+	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
 )
 
-var PORT = 6379
-var HOST = "0.0.0.0"
 
-func DbStart() {
+type RedisServer struct {
+	host string
+	port int
+	store    *store.KeyValueStore  
+	streams  *store.StreamsManager
+	listener net.Listener
+}
 
-	dir := flag.String("dir", ".", "RDB file directory") //name defaultValues description
-	dbFilename := flag.String("dbfilename", "dump.rdb", "RDB filename")
-	flag.Parse()
+func NewRedisServer(host string, port int) *RedisServer {
+	return &RedisServer{
+		host:    host,
+		port:    port,
+		store:   store.GetStore(),
+		streams: store.GetStreamManager(),
+	}
+}
 
-	// Initialize config
-	config.InitConfig(*dir, *dbFilename)
+func (redisServer *RedisServer) Start(dir, dbFilename string) error {
+	config.InitConfig(dir, dbFilename)
 
-	// Check if RDB file exists and load it
-	rdbPath := filepath.Join(*dir, *dbFilename)
+	// Load RDB file if exists
+	rdbPath := filepath.Join(dir, dbFilename)
+
 	if _, err := os.Stat(rdbPath); err == nil {
 		log.Println("Loading RDB file:", rdbPath)
+
 		parser := config.NewRDBParser()
 		if err := parser.Parse(rdbPath); err != nil {
 			log.Printf("Error loading RDB file: %v\n", err)
 		}
+
 	} else {
 		log.Println("No RDB file found at:", rdbPath)
 	}
 
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", HOST, PORT))
+	var err error
+	redisServer.listener, err = net.Listen("tcp", fmt.Sprintf("%s:%d", redisServer.host, redisServer.port))
 	if err != nil {
-		fmt.Println("Failed to bind to port", PORT)
-		os.Exit(1)
+		return fmt.Errorf("failed to bind to port %d: %v", redisServer.port, err)
 	}
-	defer ln.Close()
 
 	for {
-		conn, err := ln.Accept()
+		conn, err := redisServer.listener.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection:", err)
+			log.Printf("Error accepting connection: %v", err)
 			continue
 		}
-		// TODO make an event loop, reactor pattern??
-		go handleConnection(conn)
+		go redisServer.handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	reader := RESP.NewReader(conn)
 	writer := RESP.NewWriter(conn)
 
 	for {
-
 		msg, err := reader.Decode()
 		if err != nil {
-			fmt.Println("Error decoding RESP message:", err)
+			log.Printf("Error decoding RESP message: %v", err)
 			Handlers.HandleError(writer, []byte("ERR bad request"))
 			return
-
 		}
 
 		if msg.Type != RESP.Array || len(msg.ArrayElem) < 1 {
@@ -80,9 +90,27 @@ func handleConnection(conn net.Conn) {
 		args := msg.ArrayElem[1:]
 
 		if err := Handlers.ExecuteCommand(writer, cmd, args); err != nil {
-			fmt.Println("Error executing command:", err)
+			log.Printf("Error executing command: %v", err)
+			if strings.ToUpper(cmd) == "EXIT" {
+				return 
+			}
 			return
 		}
+	}
+}
 
+const (
+	HOST = "0.0.0.0"
+	PORT = 6379
+)
+
+func DbStart() {
+	dir := flag.String("dir", ".", "RDB file directory")
+	dbFilename := flag.String("dbfilename", "dump.rdb", "RDB filename")
+	flag.Parse()
+
+	server := NewRedisServer(HOST, PORT)
+	if err := server.Start(*dir, *dbFilename); err != nil {
+		log.Fatalf("Failed to start Redis server: %v", err)
 	}
 }

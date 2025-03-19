@@ -46,6 +46,7 @@ var (
 		// --------currently only xread, blocking with and without timeout is supported, $ as id--------
 
 		"INCR": handleIncr, // increments the value of a key, value is integer, by 1
+		"EXIT":   handleExit,
 	}
 )
 
@@ -573,6 +574,14 @@ func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		Type:  RESP.Integer,
 		Value: []byte(strconv.Itoa(newValue)),
 	})
+}
+
+/*
+ 	* handleExit handles the EXIT command, exits the server
+*/
+func handleExit(writer *RESP.Writer, args []RESP.RESPMessage) error {
+	// Signal to close the connection
+	return fmt.Errorf("client requested exit")
 }
 
 /*
