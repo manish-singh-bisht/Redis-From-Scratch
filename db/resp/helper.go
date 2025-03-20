@@ -1,43 +1,47 @@
 package RESP
 
 import (
-	"fmt"
 	"strconv"
 )
 
 /*
- 	* asString converts to string
-	* @return string - the string
-	* @return error - the error if there is one
+ 	* IsArray checks if the message is an array
+	* @return bool - true if the message is an array
 */
-func (msg *RESPMessage) asString() (string, error) {
-	if msg.Value == nil {
-		return "", fmt.Errorf("cannot parse nil value to string")
-	}
-	return string(msg.Value), nil
+func (r *RESPMessage) IsArray() bool {
+	return r.RESPType == Array
 }
 
 /*
-* asInteger converts to integer
-	* @return int64 - the integer
-	* @return error - the error if there is one
+ 	* IsBulkString checks if the message is a bulk string
+	* @return bool - true if the message is a bulk string
 */
-func (msg *RESPMessage) asInteger() (int64, error) {
-	if msg.Value == nil {
-		return 0, fmt.Errorf("cannot parse nil value to integer")
-	}
-	return strconv.ParseInt(string(msg.Value), 10, 64)
+func (r *RESPMessage) IsBulkString() bool {
+	return r.RESPType == BulkString
 }
 
 /*
- 	* asError converts to an error
-	* @return error - the error if there is one
+ 	* IsInteger checks if the message is an integer
+	* @return bool - true if the message is an integer
 */
-func (msg *RESPMessage) asError() error {
-	if msg.Value == nil {
-		return fmt.Errorf("%s", "error!!")
-	}
-	return fmt.Errorf("%s", string(msg.Value))
+func (r *RESPMessage) IsInteger() bool {
+	return r.RESPType == Integer
+}
+
+/*
+ 	* IsError checks if the message is an error
+	* @return bool - true if the message is an error
+*/
+func (r *RESPMessage) IsError() bool {
+	return r.RESPType == Error
+}
+
+/*
+ 	* IsSimpleString checks if the message is a simple string
+	* @return bool - true if the message is a simple string
+*/
+func (r *RESPMessage) IsSimpleString() bool {
+	return r.RESPType == SimpleString
 }
 
 /*
@@ -102,20 +106,6 @@ func (r *Reader) readLength() (l int, err error) {
 	}
 
 	return length, nil
-}
-
-/*
- 	* convertArrayToBytesArray converts an array to an array of bytes
-	* @param elements []RESPMessage - the array to convert
-	* @return []byte - the array of bytes
-	* @return error - the error if there is one
-*/
-func (r *Reader) convertArrayToBytesArray(elements []RESPMessage) ([]byte, error) {
-	var result []byte
-	for _, elem := range elements {
-		result = append(result, elem.Value...)
-	}
-	return result, nil
 }
 
 /*

@@ -1,6 +1,12 @@
 package handlers
 
-import RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
+import (
+	"errors"
+
+	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
+)
+
+var ErrClientClosed = errors.New("client closed")
 
 /*
  	* HandleError handles an error
@@ -10,7 +16,7 @@ import RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 */
 func HandleError(writer *RESP.Writer, errorMsg []byte) error {
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.Error,
-		Value: errorMsg,
+		RESPType:  RESP.Error,
+		RESPValue: errorMsg,
 	})
 }

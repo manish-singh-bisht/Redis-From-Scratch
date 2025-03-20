@@ -5,50 +5,50 @@ import (
 	"time"
 )
 
-type StoredValue struct {
+type storedValue struct {
 	value      []byte
 	expiration time.Time
 }
 
-type KeyValueStore struct {
+type keyValueStore struct {
 	mu    sync.RWMutex
-	store map[string]StoredValue
+	store map[string]storedValue
 }
 
-var storeInstance *KeyValueStore
+var storeInstance *keyValueStore
 
 /*
- 	* NewKeyValueStore creates a new KeyValueStore
-	* @return *KeyValueStore - the new KeyValueStore
+ 	* newKeyValueStore creates a new keyValueStore
+	* @return *keyValueStore - the new keyValueStore
 */
-func NewKeyValueStore() *KeyValueStore {
-	return &KeyValueStore{
-		store: make(map[string]StoredValue),
+func newKeyValueStore() *keyValueStore {
+	return &keyValueStore{
+		store: make(map[string]storedValue),
 	}
 }
 
 /*
- 	* GetStore returns the singleton instance of KeyValueStore
-	* @return *KeyValueStore - the singleton instance of KeyValueStore
+ 	* getKeyValueStore returns the singleton instance of keyValueStore
+	* @return *keyValueStore - the singleton instance of keyValueStore
 */
-func GetStore() *KeyValueStore {
+func getKeyValueStore() *keyValueStore {
 	if storeInstance == nil {
-		storeInstance = NewKeyValueStore()
+		storeInstance = newKeyValueStore()
 	}
 	return storeInstance
 }
 
 /*
- 	* Set sets a key to a value
+ 	* set sets a key to a value
 	* @param key string - the key to set
 	* @param value []byte - the value to set
 	* @param expiration time.Duration - the expiration time
 */
-func (kv *KeyValueStore) Set(key string, value []byte, expiration time.Duration) {
+func (kv *keyValueStore) set(key string, value []byte, expiration time.Duration) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	storedValue := StoredValue{
+	storedValue := storedValue{
 		value: value,
 	}
 
@@ -60,12 +60,12 @@ func (kv *KeyValueStore) Set(key string, value []byte, expiration time.Duration)
 }
 
 /*
- 	* Get gets a value from a key
+ 	* get gets a value from a key
 	* @param key string - the key to get the value from
 	* @return []byte - the value of the key
 	* @return bool - true if the key exists, false otherwise
 */
-func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
+func (kv *keyValueStore) get(key string) ([]byte, bool) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 
@@ -84,11 +84,11 @@ func (kv *KeyValueStore) Get(key string) ([]byte, bool) {
 }
 
 /*
- 	* GetKeys returns all the keys that match the pattern
+ 	* getKeys returns all the keys that match the pattern
 	* @param pattern string - the pattern to match
 	* @return []string - the keys that match the pattern
 */
-func (kv *KeyValueStore) GetKeys(pattern string) []string {
+func (kv *keyValueStore) getKeys(pattern string) []string {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 

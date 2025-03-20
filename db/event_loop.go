@@ -1,11 +1,13 @@
 package db
 
 // import (
-// 	"fmt"
+// 	"io"
+// 	"log"
+// 	"net/http"
 // 	"time"
 // )
 
-// // a very basic implementation and doesn't support much,where the hell is io-multiplexing???
+// // // a very basic implementation and doesn't support much,where the hell is io-multiplexing???
 
 // type EventLoop struct {
 // 	syncTasks  []func()
@@ -65,47 +67,47 @@ package db
 // 		e.processAsyncTasks()
 
 // 		if len(e.syncTasks) == 0 && len(e.asyncTasks) == 0 {
-// 			fmt.Println("Event loop finished, no tasks left.")
+// 			log.Println("Event loop finished, no tasks left.")
 // 			break
 // 		}
 // 		time.Sleep(100 * time.Millisecond) // Sleep for a short time to avoid busy-waiting and save resources from unnecessary consumption.
 // 	}
 // }
 
-// // func MakeGetRequest() {
-// // 	fmt.Println("Starting async GET request...")
+// func MakeGetRequest() {
+// 	log.Println("Starting async GET request...")
 
-// // 	resp, err := http.Get("https://jsonplaceholder.typicode.com/todos/1")
-// // 	if err != nil {
-// // 		fmt.Printf("Failed to make GET request: %v\n", err)
-// // 		return
-// // 	}
-// // 	defer resp.Body.Close()
+// 	resp, err := http.Get("https://jsonplaceholder.typicode.com/todos/1")
+// 	if err != nil {
+// 		log.Printf("Failed to make GET request: %v\n", err)
+// 		return
+// 	}
+// 	defer resp.Body.Close()
 
-// // 	body, err := io.ReadAll(resp.Body)
-// // 	if err != nil {
-// // 		fmt.Printf("Failed to read response body: %v\n", err)
-// // 		return
-// // 	}
+// 	body, err := io.ReadAll(resp.Body)
+// 	if err != nil {
+// 		log.Printf("Failed to read response body: %v\n", err)
+// 		return
+// 	}
 
-// // 	fmt.Printf("GET request successful! Response: %s\n", body)
-// // }
+// 	log.Printf("GET request successful! Response: %s\n", body)
+// }
 
-// // func main() {
-// // 	loop := NewEventLoop()
+// func main() {
+// 	loop := NewEventLoop()
 
-// // 	loop.AddSyncTask(func() {
-// // 		fmt.Println("Executing synchronous task 1")
-// // 	})
-// // 	loop.AddAsyncTask(func() {
-// // 		MakeGetRequest()
-// // 	})
+// 	loop.AddSyncTask(func() {
+// 		log.Println("Executing synchronous task 1")
+// 	})
+// 	loop.AddAsyncTask(func() {
+// 		MakeGetRequest()
+// 	})
 
-// // 	loop.AddSyncTask(func() {
-// // 		fmt.Println("Executing synchronous task 2")
-// // 	})
+// 	loop.AddSyncTask(func() {
+// 		log.Println("Executing synchronous task 2")
+// 	})
 
-// // 	loop.Run()
+// 	loop.Run()
 
-// // 	fmt.Println("Program finished.")
-// // }
+// 	log.Println("Program finished.")
+// }

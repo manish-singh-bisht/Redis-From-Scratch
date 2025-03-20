@@ -12,7 +12,7 @@ import (
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
 )
 
-type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage) error
+type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error
 
 var (
 	handlers = map[string]commandHandler{
@@ -46,7 +46,7 @@ var (
 		// --------currently only xread, blocking with and without timeout is supported, $ as id--------
 
 		"INCR": handleIncr, // increments the value of a key, value is integer, by 1
-		"EXIT":   handleExit,
+		"EXIT": handleExit,
 	}
 )
 
@@ -54,13 +54,14 @@ var (
  	* handlePing handles the PING command, returns "PONG"
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return simple string "PONG"
 */
-func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.SimpleString,
-		Value: []byte("PONG"),
+		RESPType:  RESP.SimpleString,
+		RESPValue: []byte("PONG"),
 	})
 }
 
@@ -68,17 +69,18 @@ func handlePing(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleEcho handles the ECHO command, echoes a message
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return bulk string - the message to echo
 */
-func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) > 0 {
 
 		return writer.Encode(&RESP.RESPMessage{
-			Type:  RESP.BulkString,
-			Value: args[0].Value,
-			Len:   (args[0].Len),
+			RESPType:  RESP.BulkString,
+			RESPValue: args[0].RESPValue,
+			RESPLen:   (args[0].RESPLen),
 		})
 	}
 
@@ -90,29 +92,30 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleSet handles the SET command, sets a key to a value
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return simple string "OK"
 */
-func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'SET' command"))
 
 	}
 
-	key := string(args[0].Value)
-	value := args[1].Value
+	key := string(args[0].RESPValue)
+	value := args[1].RESPValue
 
 	var expiration time.Duration = 0
 
 	// starting from 2 because 0 and 1 will be key and value respectively
 	for i := 2; i < len(args); i++ {
-		option := strings.ToUpper(string(args[i].Value))
+		option := strings.ToUpper(string(args[i].RESPValue))
 
 		switch option {
 		case "EX":
 			if i+1 < len(args) {
-				seconds, err := strconv.Atoi(string(args[i+1].Value))
+				seconds, err := strconv.Atoi(string(args[i+1].RESPValue))
 				if err != nil {
 					return HandleError(writer, []byte("ERR invalid expire time"))
 
@@ -122,7 +125,7 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 			}
 		case "PX":
 			if i+1 < len(args) {
-				milliseconds, err := strconv.Atoi(string(args[i+1].Value))
+				milliseconds, err := strconv.Atoi(string(args[i+1].RESPValue))
 				if err != nil {
 					return HandleError(writer, []byte("ERR invalid expire time"))
 
@@ -131,12 +134,12 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 				i++ // skip the next item, which will be the "value" for "PX"
 			}
 		case "NX":
-			_, exists := store.GetStore().Get(key)
+			_, exists := store.Get(key)
 			if exists {
 				return writer.EncodeNil()
 			}
 		case "XX":
-			_, exists := store.GetStore().Get(key)
+			_, exists := store.Get(key)
 			if !exists {
 				return writer.EncodeNil()
 			}
@@ -146,11 +149,11 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		}
 	}
 
-	store.GetStore().Set(key, value, expiration)
+	store.Set(key, value, expiration)
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.SimpleString,
-		Value: []byte("OK"),
+		RESPType:  RESP.SimpleString,
+		RESPValue: []byte("OK"),
 	})
 }
 
@@ -158,18 +161,19 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleGet handles the GET command, gets a value from a key
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return bulk string - the value of the key
 */
-func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleGet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) < 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'GET' command"))
 
 	}
 
-	key := string(args[0].Value)
-	value, exists := store.GetStore().Get(key)
+	key := string(args[0].RESPValue)
+	value, exists := store.Get(key)
 
 	if !exists {
 
@@ -177,9 +181,9 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.BulkString,
-		Value: value,
-		Len:   len(value),
+		RESPType:  RESP.BulkString,
+		RESPValue: value,
+		RESPLen:   len(value),
 	})
 }
 
@@ -187,10 +191,11 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleConfig handles the CONFIG command, gets the configuration of the server
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return array - the configuration of the server
 */
-func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) < 2 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'CONFIG' command"))
@@ -198,8 +203,8 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	dir, dbFilename := config.GetConfig()
-	subCommand := strings.ToUpper(string(args[0].Value))
-	parameter := strings.ToLower(string(args[1].Value))
+	subCommand := strings.ToUpper(string(args[0].RESPValue))
+	parameter := strings.ToLower(string(args[1].RESPValue))
 
 	switch subCommand {
 	case "GET":
@@ -208,14 +213,14 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		switch parameter {
 		case "dir":
 			response = []RESP.RESPMessage{
-				{Type: RESP.BulkString, Len: 3, Value: []byte("dir")},
-				{Type: RESP.BulkString, Len: len(dir), Value: []byte(dir)},
+				{RESPType: RESP.BulkString, RESPLen: 3, RESPValue: []byte("dir")},
+				{RESPType: RESP.BulkString, RESPLen: len(dir), RESPValue: []byte(dir)},
 			}
 
 		case "dbfilename":
 			response = []RESP.RESPMessage{
-				{Type: RESP.BulkString, Len: 10, Value: []byte("dbfilename")},
-				{Type: RESP.BulkString, Len: len(dbFilename), Value: []byte(dbFilename)},
+				{RESPType: RESP.BulkString, RESPLen: 10, RESPValue: []byte("dbfilename")},
+				{RESPType: RESP.BulkString, RESPLen: len(dbFilename), RESPValue: []byte(dbFilename)},
 			}
 
 		default:
@@ -224,9 +229,9 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		}
 
 		return writer.Encode(&RESP.RESPMessage{
-			Type:      RESP.Array,
-			Len:       len(response),
-			ArrayElem: response,
+			RESPType:      RESP.Array,
+			RESPLen:       len(response),
+			RESPArrayElem: response,
 		})
 
 	default:
@@ -239,32 +244,33 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleKeys returns all the keys that match the pattern
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return array - the keys that match the pattern
 */
-func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'KEYS' command"))
 	}
 
-	pattern := string(args[0].Value)
-	keys := store.GetStore().GetKeys(pattern)
+	pattern := string(args[0].RESPValue)
+	keys := store.GetKeys(pattern)
 
 	// Create response array
 	response := make([]RESP.RESPMessage, len(keys))
 	for i, key := range keys {
 		response[i] = RESP.RESPMessage{
-			Type:  RESP.BulkString,
-			Value: []byte(key),
-			Len:   len(key),
+			RESPType:  RESP.BulkString,
+			RESPValue: []byte(key),
+			RESPLen:   len(key),
 		}
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:      RESP.Array,
-		Len:       len(response),
-		ArrayElem: response,
+		RESPType:      RESP.Array,
+		RESPLen:       len(response),
+		RESPArrayElem: response,
 	})
 }
 
@@ -272,17 +278,18 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleType returns the type of the key
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return simple string - the type of the key
 */
-func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleType(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'TYPE' command"))
 	}
 
-	inputKey := string(args[0].Value)
-	keys := store.GetStore().GetKeys("*")
+	inputKey := string(args[0].RESPValue)
+	keys := store.GetKeys("*")
 
 	var typeOfKey string
 
@@ -295,7 +302,7 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	if typeOfKey == "" {
-		isStream := store.GetStreamManager().IsStreamKey(inputKey)
+		isStream := store.IsStreamKey(inputKey)
 		if isStream {
 			typeOfKey = "stream"
 		}
@@ -306,9 +313,9 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.SimpleString,
-		Len:   len(typeOfKey),
-		Value: []byte(typeOfKey),
+		RESPType:  RESP.SimpleString,
+		RESPLen:   len(typeOfKey),
+		RESPValue: []byte(typeOfKey),
 	})
 }
 
@@ -316,18 +323,19 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleXAdd handles the XADD command, adds a new entry to a stream
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return bulk string - the ID of the new entry
 */
-func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 
 	// Check minimum required arguments (stream name, ID, and at least one field-value pair)
 	if len(args) < 4 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
 	}
 
-	streamName := string(args[0].Value)
-	id := string(args[1].Value)
+	streamName := string(args[0].RESPValue)
+	id := string(args[1].RESPValue)
 
 	// Validate that we have an even number of field-value pairs
 	if (len(args)-2)%2 != 0 {
@@ -336,12 +344,12 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 
 	dataMap := make(map[string][]byte)
 	for i := 2; i < len(args); i += 2 {
-		key := string(args[i].Value)
-		value := args[i+1].Value
+		key := string(args[i].RESPValue)
+		value := args[i+1].RESPValue
 		dataMap[key] = value
 	}
 
-	streamRecord, ok, err := store.GetStreamManager().XAdd(streamName, id, dataMap)
+	streamRecord, ok, err := store.XAdd(streamName, id, dataMap)
 
 	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
@@ -352,9 +360,9 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.BulkString,
-		Len:   len(streamRecord.Id),
-		Value: []byte(streamRecord.Id),
+		RESPType:  RESP.BulkString,
+		RESPLen:   len(streamRecord.Id),
+		RESPValue: []byte(streamRecord.Id),
 	})
 }
 
@@ -362,19 +370,20 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleXRange handles the XRANGE command, gets a range of entries from a stream
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
 */
-func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 	if len(args) != 3 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XRANGE' command"))
 	}
 
-	streamName := string(args[0].Value)
-	startId := string(args[1].Value)
-	endId := string(args[2].Value)
+	streamName := string(args[0].RESPValue)
+	startId := string(args[1].RESPValue)
+	endId := string(args[2].RESPValue)
 
-	streamRecords, err := store.GetStreamManager().XRange(streamName, startId, endId)
+	streamRecords, err := store.XRange(streamName, startId, endId)
 	if err != nil {
 		return HandleError(writer, []byte(err.Error()))
 	}
@@ -396,15 +405,15 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	//   ]
 	// ]
 
-	entries := store.GetStreamManager().CreateStreamMessages(streamRecords)
+	entries := store.CreateStreamMessages(streamRecords)
 	return writer.Encode(&RESP.RESPMessage{
-		Type:      RESP.Array,
-		Len:       len(entries),
-		ArrayElem: entries,
+		RESPType:      RESP.Array,
+		RESPLen:       len(entries),
+		RESPArrayElem: entries,
 	})
 }
 
-func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Store) error {
 	if len(args) < 3 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
 	}
@@ -414,14 +423,14 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	streamStartIdx := -1
 
 	for i := 0; i < len(args); i++ {
-		option := strings.ToUpper(string(args[i].Value))
+		option := strings.ToUpper(string(args[i].RESPValue))
 		switch option {
 		case "BLOCK":
 			if i+1 >= len(args) {
 				return HandleError(writer, []byte("ERR syntax error"))
 			}
 			var err error
-			blockMs, err = strconv.Atoi(string(args[i+1].Value))
+			blockMs, err = strconv.Atoi(string(args[i+1].RESPValue))
 			if err != nil || blockMs < 0 {
 				return HandleError(writer, []byte("ERR invalid BLOCK time"))
 			}
@@ -431,7 +440,7 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 				return HandleError(writer, []byte("ERR syntax error"))
 			}
 			var err error
-			count, err = strconv.Atoi(string(args[i+1].Value))
+			count, err = strconv.Atoi(string(args[i+1].RESPValue))
 			if err != nil || count < 0 {
 				return HandleError(writer, []byte("ERR invalid COUNT"))
 			}
@@ -464,17 +473,17 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	// Process each stream
 	finalResponse := make([]RESP.RESPMessage, 0, numStreams)
 	for i := 0; i < numStreams; i++ {
-		streamName := string(streamNames[i].Value)
-		startId := string(streamIds[i].Value)
+		streamName := string(streamNames[i].RESPValue)
+		startId := string(streamIds[i].RESPValue)
 
 		if blockMs >= 0 {
 			var noTimeout bool = false
 			if blockMs == 0 {
 				noTimeout = true
 			}
-			streamRecords, err = store.GetStreamManager().XReadBlock(streamName, startId, blockMs, noTimeout)
+			streamRecords, err = stored.XReadBlock(streamName, startId, blockMs, noTimeout)
 		} else {
-			streamRecords, err = store.GetStreamManager().XRead(streamName, startId)
+			streamRecords, err = stored.XRead(streamName, startId)
 		}
 
 		if err != nil {
@@ -509,20 +518,21 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 		//     ]
 		//   ]
 		// ]
-		entries := store.GetStreamManager().CreateStreamMessages(streamRecords)
+
+		entries := stored.CreateStreamMessages(streamRecords)
 		streamResponse := RESP.RESPMessage{
-			Type: RESP.Array,
-			Len:  2,
-			ArrayElem: []RESP.RESPMessage{
+			RESPType: RESP.Array,
+			RESPLen:  2,
+			RESPArrayElem: []RESP.RESPMessage{
 				{
-					Type:  RESP.BulkString,
-					Len:   len(streamName),
-					Value: []byte(streamName),
+					RESPType:  RESP.BulkString,
+					RESPLen:   len(streamName),
+					RESPValue: []byte(streamName),
 				},
 				{
-					Type:      RESP.Array,
-					Len:       len(entries),
-					ArrayElem: entries,
+					RESPType:      RESP.Array,
+					RESPLen:       len(entries),
+					RESPArrayElem: entries,
 				},
 			},
 		}
@@ -530,9 +540,9 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:      RESP.Array,
-		Len:       len(finalResponse),
-		ArrayElem: finalResponse,
+		RESPType:      RESP.Array,
+		RESPLen:       len(finalResponse),
+		RESPArrayElem: finalResponse,
 	})
 }
 
@@ -540,24 +550,25 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage) error {
  	* handleIncr handles the INCR command, increments the value of a key
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
+	* @param store *store.Store - the store to get the data from
 	* @return error - the error if there is one
 	* @return integer - the new value of the key
 */
-func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
+func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 	if len(args) != 1 {
 		return HandleError(writer, []byte("ERR wrong number of arguments for 'INCR' command"))
 	}
 
-	key := string(args[0].Value)
-	value, exists := store.GetStore().Get(key)
+	key := string(args[0].RESPValue)
+	value, exists := store.Get(key)
 
 	var newValue int
 	if !exists {
 		// if the key doesn't exist, set to 1
-		store.GetStore().Set(key, []byte("1"), 0)
+		store.Set(key, []byte("1"), 0)
 		return writer.Encode(&RESP.RESPMessage{
-			Type:  RESP.Integer,
-			Value: []byte("1"),
+			RESPType:  RESP.Integer,
+			RESPValue: []byte("1"),
 		})
 	}
 
@@ -568,26 +579,31 @@ func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage) error {
 	}
 
 	newValue = currentValue + 1
-	store.GetStore().Set(key, []byte(strconv.Itoa(newValue)), 0)
+	store.Set(key, []byte(strconv.Itoa(newValue)), 0)
 
 	return writer.Encode(&RESP.RESPMessage{
-		Type:  RESP.Integer,
-		Value: []byte(strconv.Itoa(newValue)),
+		RESPType:  RESP.Integer,
+		RESPValue: []byte(strconv.Itoa(newValue)),
 	})
 }
 
 /*
- 	* handleExit handles the EXIT command, exits the server
-*/
-func handleExit(writer *RESP.Writer, args []RESP.RESPMessage) error {
+* handleExit handles the EXIT command, exits the server
+ */
+func handleExit(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
 	// Signal to close the connection
-	return fmt.Errorf("client requested exit")
+	return ErrClientClosed
 }
 
 /*
 * ExecuteCommand executes a command and returns the response
+* @param writer *RESP.Writer - the writer to write the response to
+* @param cmd string - the command to execute
+* @param args []RESP.RESPMessage - the arguments for the command
+* @param store *store.Store - the store to get the data from
+* @return error - the error if there is one
  */
-func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) error {
+func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage, store *store.Store) error {
 
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
@@ -597,5 +613,5 @@ func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage) er
 		return HandleError(writer, []byte("ERR unknown command"))
 	}
 
-	return handler(writer, args)
+	return handler(writer, args, store)
 }

@@ -15,25 +15,24 @@ import (
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
 )
 
-
 type RedisServer struct {
-	host string
-	port int
-	store    *store.KeyValueStore  
-	streams  *store.StreamsManager
+	host     string
+	port     int
+	store    *store.Store
 	listener net.Listener
 }
 
 func NewRedisServer(host string, port int) *RedisServer {
 	return &RedisServer{
-		host:    host,
-		port:    port,
-		store:   store.GetStore(),
-		streams: store.GetStreamManager(),
+		host:  host,
+		port:  port,
+		store: store.NewStore(),
 	}
 }
 
 func (redisServer *RedisServer) Start(dir, dbFilename string) error {
+
+	welcomeMessage()
 	config.InitConfig(dir, dbFilename)
 
 	// Load RDB file if exists
@@ -42,11 +41,15 @@ func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 	if _, err := os.Stat(rdbPath); err == nil {
 		log.Println("Loading RDB file:", rdbPath)
 
-		parser := config.NewRDBParser()
-		if err := parser.Parse(rdbPath); err != nil {
+		parser := config.GetRDBInstance()
+		parsedData, err := parser.Parse(rdbPath)
+		if err != nil {
 			log.Printf("Error loading RDB file: %v\n", err)
+		} else {
+			for _, kv := range parsedData {
+				redisServer.store.Set(kv.Key, kv.Value, kv.ExpiresIn)
+			}
 		}
-
 	} else {
 		log.Println("No RDB file found at:", rdbPath)
 	}
@@ -63,6 +66,8 @@ func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 			log.Printf("Error accepting connection: %v", err)
 			continue
 		}
+
+		// TODO make an event loop, reactor pattern??
 		go redisServer.handleConnection(conn)
 	}
 }
@@ -81,18 +86,18 @@ func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 			return
 		}
 
-		if msg.Type != RESP.Array || len(msg.ArrayElem) < 1 {
+		if !msg.IsArray() || len(msg.RESPArrayElem) < 1 {
 			Handlers.HandleError(writer, []byte("ERR invalid command format"))
 			continue
 		}
 
-		cmd := string(msg.ArrayElem[0].Value)
-		args := msg.ArrayElem[1:]
+		cmd := string(msg.RESPArrayElem[0].RESPValue)
+		args := msg.RESPArrayElem[1:]
 
-		if err := Handlers.ExecuteCommand(writer, cmd, args); err != nil {
+		if err := Handlers.ExecuteCommand(writer, cmd, args, redisServer.store); err != nil {
 			log.Printf("Error executing command: %v", err)
 			if strings.ToUpper(cmd) == "EXIT" {
-				return 
+				return
 			}
 			return
 		}

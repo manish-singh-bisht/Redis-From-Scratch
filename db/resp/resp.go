@@ -16,10 +16,10 @@ const (
 )
 
 type RESPMessage struct {
-	Type      byte
-	Len       int
-	Value     []byte
-	ArrayElem []RESPMessage // storing for array type separately as it prevents double decoding of array during encoding.
+	RESPType      byte
+	RESPLen       int
+	RESPValue     []byte
+	RESPArrayElem []RESPMessage // storing for array type separately as it prevents double decoding of array during encoding.
 }
 
 type Reader struct {
@@ -79,7 +79,7 @@ func (r *Reader) decodeSimpleString() (*RESPMessage, error) {
 		return nil, err
 	}
 
-	return &RESPMessage{Type: SimpleString, Len: length, Value: line}, nil
+	return &RESPMessage{RESPType: SimpleString, RESPLen: length, RESPValue: line}, nil
 }
 
 /*
@@ -93,7 +93,7 @@ func (r *Reader) decodeError() (*RESPMessage, error) {
 		return nil, err
 	}
 
-	return &RESPMessage{Type: Error, Len: length, Value: line}, nil
+	return &RESPMessage{RESPType: Error, RESPLen: length, RESPValue: line}, nil
 }
 
 /*
@@ -107,7 +107,7 @@ func (r *Reader) decodeInteger() (*RESPMessage, error) {
 		return nil, err
 	}
 
-	return &RESPMessage{Type: Integer, Len: length, Value: line}, nil
+	return &RESPMessage{RESPType: Integer, RESPLen: length, RESPValue: line}, nil
 }
 
 /*
@@ -127,7 +127,7 @@ func (r *Reader) decodeBulkString() (*RESPMessage, error) {
 	}
 
 	if length <= 0 {
-		return &RESPMessage{Type: BulkString, Len: 0, Value: nil}, nil
+		return &RESPMessage{RESPType: BulkString, RESPLen: 0, RESPValue: nil}, nil
 	}
 
 	content := make([]byte, length)
@@ -137,7 +137,7 @@ func (r *Reader) decodeBulkString() (*RESPMessage, error) {
 
 	r.readLine() // consume trailing \r\n
 
-	return &RESPMessage{Type: BulkString, Len: length, Value: content}, nil
+	return &RESPMessage{RESPType: BulkString, RESPLen: length, RESPValue: content}, nil
 }
 
 /*
@@ -165,7 +165,7 @@ func (r *Reader) decodeArray() (*RESPMessage, error) {
 		arrayElements = append(arrayElements, *element)
 	}
 
-	return &RESPMessage{Type: Array, Len: length, ArrayElem: arrayElements}, nil
+	return &RESPMessage{RESPType: Array, RESPLen: length, RESPArrayElem: arrayElements}, nil
 }
 
 /*
@@ -191,7 +191,7 @@ func NewWriter(w io.Writer) *Writer {
 */
 func (w *Writer) Encode(msg *RESPMessage) error {
 
-	switch msg.Type {
+	switch msg.RESPType {
 
 	case SimpleString:
 		return w.encodeSimpleString(msg)
@@ -209,7 +209,7 @@ func (w *Writer) Encode(msg *RESPMessage) error {
 		return w.encodeArray(msg)
 
 	default:
-		return fmt.Errorf("unsupported RESP type for encoding: %c", msg.Type)
+		return fmt.Errorf("unsupported RESP type for encoding: %c", msg.RESPType)
 	}
 }
 
@@ -223,7 +223,7 @@ func (w *Writer) encodeSimpleString(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write(msg.Value); err != nil {
+	if _, err := w.writer.Write(msg.RESPValue); err != nil {
 		return err
 	}
 
@@ -244,7 +244,7 @@ func (w *Writer) encodeError(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write(msg.Value); err != nil {
+	if _, err := w.writer.Write(msg.RESPValue); err != nil {
 		return err
 	}
 
@@ -265,7 +265,7 @@ func (w *Writer) encodeInteger(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write(msg.Value); err != nil {
+	if _, err := w.writer.Write(msg.RESPValue); err != nil {
 		return err
 	}
 
@@ -282,7 +282,7 @@ func (w *Writer) encodeInteger(msg *RESPMessage) error {
 	* @return error - the error if there is one
 */
 func (w *Writer) encodeBulkString(msg *RESPMessage) error {
-	if msg.Value == nil {
+	if msg.RESPValue == nil {
 		return w.EncodeNil()
 	}
 
@@ -290,7 +290,7 @@ func (w *Writer) encodeBulkString(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write([]byte(strconv.Itoa(msg.Len))); err != nil {
+	if _, err := w.writer.Write([]byte(strconv.Itoa(msg.RESPLen))); err != nil {
 		return err
 	}
 
@@ -298,7 +298,7 @@ func (w *Writer) encodeBulkString(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write(msg.Value); err != nil {
+	if _, err := w.writer.Write(msg.RESPValue); err != nil {
 		return err
 	}
 
@@ -319,7 +319,7 @@ func (w *Writer) encodeArray(msg *RESPMessage) error {
 		return err
 	}
 
-	if _, err := w.writer.Write([]byte(strconv.Itoa(msg.Len))); err != nil {
+	if _, err := w.writer.Write([]byte(strconv.Itoa(msg.RESPLen))); err != nil {
 		return err
 	}
 
@@ -327,7 +327,7 @@ func (w *Writer) encodeArray(msg *RESPMessage) error {
 		return err
 	}
 
-	for _, element := range msg.ArrayElem {
+	for _, element := range msg.RESPArrayElem {
 		if err := w.Encode(&element); err != nil {
 			return fmt.Errorf("error encoding array element: %v", err)
 		}
