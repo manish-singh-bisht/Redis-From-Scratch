@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -10,12 +12,14 @@ import (
 	config "github.com/manish-singh-bisht/Redis-From-Scratch/db/persistence"
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
+	tx "github.com/manish-singh-bisht/Redis-From-Scratch/db/transaction"
 )
 
-type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error
+// passing clientID and txManager to the handler because we need for transaction related commands, other than that we are not using them, so is it a good practice?? Not sure!!
+type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error
 
-var (
-	handlers = map[string]commandHandler{
+func getHandlers(cmd string) (commandHandler, bool) {
+	handlers := map[string]commandHandler{
 		"PING":   handlePing, // responds with "PONG"
 		"ECHO":   handleEcho, // echoes a message, that is return what is passed in
 		"SET":    handleSet,  // sets a key to a value, with optional expiration time, updates the value if the key already exists
@@ -47,8 +51,23 @@ var (
 
 		"INCR": handleIncr, // increments the value of a key, value is integer, by 1
 		"EXIT": handleExit,
+
+		"MULTI": handleMulti,
+		// starts a transaction
+		// all the commands after MULTI will be queued up and executed atomically i.e as a single unit
+
+		"EXEC":    handleExec,    // executes a transaction
+		"DISCARD": handleDiscard, // discards a transaction
+		"WATCH":   handleWatch,
+		// watches a key for changes
+		// if the key is changed, the transaction is discarded
+		// if the key is not changed, the transaction is executed
+		// keys after EXEC, whether properly executed or not, are not watched
 	}
-)
+	handler, exists := handlers[cmd]
+
+	return handler, exists
+}
 
 /*
  	* handlePing handles the PING command, returns "PONG"
@@ -58,7 +77,7 @@ var (
 	* @return error - the error if there is one
 	* @return simple string "PONG"
 */
-func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	return writer.Encode(&RESP.RESPMessage{
 		RESPType:  RESP.SimpleString,
 		RESPValue: []byte("PONG"),
@@ -73,7 +92,7 @@ func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @return error - the error if there is one
 	* @return bulk string - the message to echo
 */
-func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) > 0 {
 
@@ -83,8 +102,8 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 			RESPLen:   (args[0].RESPLen),
 		})
 	}
-
-	return HandleError(writer, []byte("ERR wrong number of arguments for 'ECHO' command"))
+	err := errWrongNumberOfArguments("ECHO")
+	return HandleError(writer, []byte(err.Error()))
 
 }
 
@@ -96,10 +115,11 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @return error - the error if there is one
 	* @return simple string "OK"
 */
-func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) < 2 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'SET' command"))
+		err := errWrongNumberOfArguments("SET")
+		return HandleError(writer, []byte(err.Error()))
 
 	}
 
@@ -151,6 +171,11 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store)
 
 	store.Set(key, value, expiration)
 
+	// if the key is being watched, update the key's global version
+	_, exists := txManager.GetGlobalKeyVersions(key)
+	if exists {
+		txManager.UpdateGlobalKeyVersionsMap(key)
+	}
 	return writer.Encode(&RESP.RESPMessage{
 		RESPType:  RESP.SimpleString,
 		RESPValue: []byte("OK"),
@@ -165,10 +190,11 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store)
 	* @return error - the error if there is one
 	* @return bulk string - the value of the key
 */
-func handleGet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleGet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) < 1 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'GET' command"))
+		err := errWrongNumberOfArguments("GET")
+		return HandleError(writer, []byte(err.Error()))
 
 	}
 
@@ -195,10 +221,11 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store)
 	* @return error - the error if there is one
 	* @return array - the configuration of the server
 */
-func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) < 2 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'CONFIG' command"))
+		err := errWrongNumberOfArguments("CONFIG")
+		return HandleError(writer, []byte(err.Error()))
 
 	}
 
@@ -248,10 +275,11 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Sto
 	* @return error - the error if there is one
 	* @return array - the keys that match the pattern
 */
-func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) != 1 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'KEYS' command"))
+		err := errWrongNumberOfArguments("KEYS")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	pattern := string(args[0].RESPValue)
@@ -282,10 +310,11 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @return error - the error if there is one
 	* @return simple string - the type of the key
 */
-func handleType(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleType(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	if len(args) != 1 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'TYPE' command"))
+		err := errWrongNumberOfArguments("TYPE")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	inputKey := string(args[0].RESPValue)
@@ -327,11 +356,12 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @return error - the error if there is one
 	* @return bulk string - the ID of the new entry
 */
-func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	// Check minimum required arguments (stream name, ID, and at least one field-value pair)
 	if len(args) < 4 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
+		err := errWrongNumberOfArguments("XADD")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	streamName := string(args[0].RESPValue)
@@ -339,7 +369,8 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 
 	// Validate that we have an even number of field-value pairs
 	if (len(args)-2)%2 != 0 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'XADD' command"))
+		err := errWrongNumberOfArguments("XADD")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	dataMap := make(map[string][]byte)
@@ -374,9 +405,10 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @return error - the error if there is one
 	* @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
 */
-func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	if len(args) != 3 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'XRANGE' command"))
+		err := errWrongNumberOfArguments("XRANGE")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	streamName := string(args[0].RESPValue)
@@ -413,9 +445,10 @@ func handleXRange(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Sto
 	})
 }
 
-func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Store) error {
+func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, streamStore *store.Store, clientID string, txManager *tx.TxManager) error {
 	if len(args) < 3 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
+		err := errWrongNumberOfArguments("XREAD")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	blockMs := -1
@@ -459,7 +492,8 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Sto
 	// the total args for XREAD will always be odd, and removing the arg which is "STREAMS" and even pair of "COUNT" and "BLOCK", there will just streamName(s) and id(s)
 	remainingArgs := len(args) - streamStartIdx
 	if remainingArgs%2 != 0 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'XREAD' command"))
+		err := errWrongNumberOfArguments("XREAD")
+		return HandleError(writer, []byte(err.Error()))
 	}
 	numStreams := remainingArgs / 2
 
@@ -481,9 +515,9 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Sto
 			if blockMs == 0 {
 				noTimeout = true
 			}
-			streamRecords, err = stored.XReadBlock(streamName, startId, blockMs, noTimeout)
+			streamRecords, err = streamStore.XReadBlock(streamName, startId, blockMs, noTimeout)
 		} else {
-			streamRecords, err = stored.XRead(streamName, startId)
+			streamRecords, err = streamStore.XRead(streamName, startId)
 		}
 
 		if err != nil {
@@ -519,7 +553,7 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Sto
 		//   ]
 		// ]
 
-		entries := stored.CreateStreamMessages(streamRecords)
+		entries := streamStore.CreateStreamMessages(streamRecords)
 		streamResponse := RESP.RESPMessage{
 			RESPType: RESP.Array,
 			RESPLen:  2,
@@ -546,21 +580,20 @@ func handleXRead(writer *RESP.Writer, args []RESP.RESPMessage, stored *store.Sto
 	})
 }
 
-/*
- 	* handleIncr handles the INCR command, increments the value of a key
-	* @param writer *RESP.Writer - the writer to write the response to
-	* @param args []RESP.RESPMessage - the arguments for the command
-	* @param store *store.Store - the store to get the data from
-	* @return error - the error if there is one
-	* @return integer - the new value of the key
-*/
-func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	if len(args) != 1 {
-		return HandleError(writer, []byte("ERR wrong number of arguments for 'INCR' command"))
+		err := errWrongNumberOfArguments("INCR")
+		return HandleError(writer, []byte(err.Error()))
 	}
 
 	key := string(args[0].RESPValue)
 	value, exists := store.Get(key)
+
+	// if the key is being watched, update the key's global version
+	_, globalVersionExists := txManager.GetGlobalKeyVersions(key)
+	if globalVersionExists {
+		txManager.UpdateGlobalKeyVersionsMap(key)
+	}
 
 	var newValue int
 	if !exists {
@@ -590,9 +623,97 @@ func handleIncr(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 /*
 * handleExit handles the EXIT command, exits the server
  */
-func handleExit(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store) error {
+func handleExit(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	// Signal to close the connection
 	return ErrClientClosed
+}
+
+func handleMulti(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
+	err := txManager.Multi(clientID)
+	if err != nil {
+		return HandleError(writer, []byte(err.Error()))
+	}
+	return writer.Encode(&RESP.RESPMessage{
+		RESPType:  RESP.SimpleString,
+		RESPValue: []byte("OK"),
+	})
+}
+
+func handleExec(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
+	commands, err := txManager.Exec(clientID)
+	if err != nil {
+		return HandleError(writer, []byte(err.Error()))
+	}
+
+	if len(commands) == 0 {
+		return writer.Encode(&RESP.RESPMessage{
+			RESPType:      RESP.Array,
+			RESPLen:       0,
+			RESPArrayElem: []RESP.RESPMessage{},
+		})
+	}
+
+	responses := make([]RESP.RESPMessage, 0, len(commands))
+
+	// execute each command in the transaction and collect responses
+	for _, command := range commands {
+		cmd := strings.ToUpper(string(command.Cmd.RESPValue))
+
+		handler, exists := getHandlers(cmd)
+		if !exists {
+			return HandleError(writer, []byte(fmt.Sprintf("ERR unknown command '%s'", cmd)))
+		}
+
+		var respBuf bytes.Buffer
+		tempWriter := RESP.NewWriter(&respBuf)
+
+		err = handler(tempWriter, command.Args, store, clientID, txManager)
+		if err != nil {
+			return HandleError(writer, []byte(err.Error()))
+		}
+
+		// Decode the response from the buffer
+		reader := RESP.NewReader(&respBuf)
+		resp, err := reader.Decode()
+		if err != nil {
+			return HandleError(writer, []byte("ERR failed to decode response"))
+		}
+
+		responses = append(responses, *resp)
+	}
+
+	return writer.Encode(&RESP.RESPMessage{
+		RESPType:      RESP.Array,
+		RESPLen:       len(responses),
+		RESPArrayElem: responses,
+	})
+}
+
+func handleDiscard(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
+	err := txManager.Discard(clientID)
+	if err != nil {
+		return HandleError(writer, []byte(err.Error()))
+	}
+	return writer.Encode(&RESP.RESPMessage{
+		RESPType:  RESP.SimpleString,
+		RESPValue: []byte("OK"),
+	})
+
+}
+
+func handleWatch(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
+	if len(args) < 1 {
+		err := errWrongNumberOfArguments("WATCH")
+		return HandleError(writer, []byte(err.Error()))
+	}
+	for _, arg := range args {
+		key := string(arg.RESPValue)
+		txManager.Watch(clientID, key)
+	}
+	return writer.Encode(&RESP.RESPMessage{
+		RESPType:  RESP.SimpleString,
+		RESPValue: []byte("OK"),
+	})
 }
 
 /*
@@ -603,15 +724,34 @@ func handleExit(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 * @param store *store.Store - the store to get the data from
 * @return error - the error if there is one
  */
-func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage, store *store.Store) error {
+func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
 	// convert command to uppercase for case-insensitive matching
 	cmd = strings.ToUpper(cmd)
 
-	handler, exists := handlers[cmd]
+	handler, exists := getHandlers(cmd)
 	if !exists {
+		log.Printf("cmd:%v, does not exist", cmd)
 		return HandleError(writer, []byte("ERR unknown command"))
 	}
 
-	return handler(writer, args, store)
+	// if in MULTI, queue commands except for transaction-related ones
+	if cmd != "MULTI" && cmd != "EXEC" && cmd != "DISCARD" && cmd != "WATCH" && cmd != "UNWATCH" {
+
+		err := txManager.Queue(clientID, RESP.RESPMessage{
+			RESPType:  RESP.BulkString,
+			RESPValue: []byte(cmd),
+		}, args)
+
+		// if there is no MULTI, then there will be an error and in that case other commands will be executed.
+		if err == nil {
+			log.Printf("cmd:%v, queued", cmd)
+			return writer.Encode(&RESP.RESPMessage{
+				RESPType:  RESP.SimpleString,
+				RESPValue: []byte("QUEUED"),
+			})
+		}
+	}
+
+	return handler(writer, args, store, clientID, txManager)
 }

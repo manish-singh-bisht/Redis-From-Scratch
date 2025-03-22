@@ -1,4 +1,4 @@
-package db
+package server
 
 import (
 	"flag"
@@ -13,29 +13,37 @@ import (
 	config "github.com/manish-singh-bisht/Redis-From-Scratch/db/persistence"
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 	store "github.com/manish-singh-bisht/Redis-From-Scratch/db/store"
+	tx "github.com/manish-singh-bisht/Redis-From-Scratch/db/transaction"
 )
 
 type RedisServer struct {
-	host     string
-	port     int
-	store    *store.Store
-	listener net.Listener
+	host      string
+	port      int
+	store     *store.Store
+	listener  net.Listener
+	txManager *tx.TxManager
 }
 
 func NewRedisServer(host string, port int) *RedisServer {
 	return &RedisServer{
-		host:  host,
-		port:  port,
-		store: store.NewStore(),
+		host:      host,
+		port:      port,
+		store:     store.GetStore(),
+		txManager: tx.NewTxManager(),
 	}
 }
 
 func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 
+	var err error
+	redisServer.listener, err = net.Listen("tcp", fmt.Sprintf("%s:%d", redisServer.host, redisServer.port))
+	if err != nil {
+		return fmt.Errorf("failed to bind to port %d: %v", redisServer.port, err)
+	}
+
 	welcomeMessage()
 	config.InitConfig(dir, dbFilename)
 
-	// Load RDB file if exists
 	rdbPath := filepath.Join(dir, dbFilename)
 
 	if _, err := os.Stat(rdbPath); err == nil {
@@ -54,12 +62,6 @@ func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 		log.Println("No RDB file found at:", rdbPath)
 	}
 
-	var err error
-	redisServer.listener, err = net.Listen("tcp", fmt.Sprintf("%s:%d", redisServer.host, redisServer.port))
-	if err != nil {
-		return fmt.Errorf("failed to bind to port %d: %v", redisServer.port, err)
-	}
-
 	for {
 		conn, err := redisServer.listener.Accept()
 		if err != nil {
@@ -75,6 +77,7 @@ func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	clientID := generateClientID()
 	reader := RESP.NewReader(conn)
 	writer := RESP.NewWriter(conn)
 
@@ -94,9 +97,11 @@ func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 		cmd := string(msg.RESPArrayElem[0].RESPValue)
 		args := msg.RESPArrayElem[1:]
 
-		if err := Handlers.ExecuteCommand(writer, cmd, args, redisServer.store); err != nil {
+		err = Handlers.ExecuteCommand(writer, cmd, args, redisServer.store, clientID, redisServer.txManager)
+		if err != nil {
 			log.Printf("Error executing command: %v", err)
-			if strings.ToUpper(cmd) == "EXIT" {
+			if strings.ToUpper(cmd) == "EXIT" { // TODO do it better
+				log.Print("Exiting...")
 				return
 			}
 			return

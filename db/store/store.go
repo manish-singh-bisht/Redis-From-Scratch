@@ -11,7 +11,7 @@ type Store struct {
 	streams *streamManager
 }
 
-func NewStore() *Store {
+func GetStore() *Store {
 	return &Store{
 		kv:      getKeyValueStore(),
 		streams: getStreamManager(),

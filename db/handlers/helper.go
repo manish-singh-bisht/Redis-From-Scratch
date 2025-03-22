@@ -2,11 +2,16 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 
 	RESP "github.com/manish-singh-bisht/Redis-From-Scratch/db/resp"
 )
 
 var ErrClientClosed = errors.New("client closed")
+
+func errWrongNumberOfArguments(cmd string) error {
+	return fmt.Errorf("ERR wrong number of arguments for '%s' command", cmd)
+}
 
 /*
  	* HandleError handles an error
