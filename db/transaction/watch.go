@@ -18,6 +18,11 @@ func NewClientWatches(global *globalKeyVersions) *clientWatches {
 	}
 }
 
+/**
+ * startWatch starts watching a key for a client
+ * @param clientID string - the client id
+ * @param key string - the key to watch
+ */
 func (cw *clientWatches) startWatch(clientID string, key string) {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
@@ -36,6 +41,10 @@ func (cw *clientWatches) startWatch(clientID string, key string) {
 	cw.watches[clientID][key] = latestVer
 }
 
+/**
+ * unwatch stops watching a key for a client
+ * @param clientID string - the client id
+ */
 func (cw *clientWatches) unwatch(clientID string) {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
@@ -45,6 +54,12 @@ func (cw *clientWatches) unwatch(clientID string) {
 }
 
 // checkWatches compares local versions with the current global version and if any differences than transaction invalid, CAS
+/**
+ * checkWatches checks if the transaction is valid
+ * @param clientID string - the client id
+ * @return bool - true if the transaction is valid, false otherwise
+ * @return error - the error if there is one
+ */
 func (cw *clientWatches) checkWatches(clientID string) (bool, error) {
 	cw.mu.RLock()
 	defer cw.mu.RUnlock()

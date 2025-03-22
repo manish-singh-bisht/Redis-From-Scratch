@@ -25,6 +25,13 @@ func getNextVersion() uint64 {
 	return atomic.AddUint64(&globalVersion, 1)
 }
 
+/**
+ * queue queues a command to be executed in a transaction
+ * @param clientID string - the client id
+ * @param cmd RESP.RESPMessage - the command to queue
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @return error - the error if there is one
+ */
 func (tm *TxManager) queue(clientID string, cmd RESP.RESPMessage, args []RESP.RESPMessage) error {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()

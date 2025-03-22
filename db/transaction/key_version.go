@@ -23,6 +23,11 @@ func getGlobalKeyVersions() *globalKeyVersions {
 	return globalKeyVersionsInstance
 }
 
+/**
+ * upsertGlobalVersion updates the global version for a key
+ * @param key string - the key to update the global version for
+ * @return uint64 - the new global version
+ */
 func (ver *globalKeyVersions) upsertGlobalVersion(key string) uint64 {
 	ver.mu.Lock()
 	defer ver.mu.Unlock()
@@ -33,6 +38,12 @@ func (ver *globalKeyVersions) upsertGlobalVersion(key string) uint64 {
 	return newVersion
 }
 
+/**
+ * getGlobalVersion gets the global version for a key
+ * @param key string - the key to get the global version for
+ * @return uint64 - the global version
+ * @return bool - true if the key exists, false otherwise
+ */
 func (ver *globalKeyVersions) getGlobalVersion(key string) (uint64, bool) {
 	ver.mu.RLock()
 	defer ver.mu.RUnlock()

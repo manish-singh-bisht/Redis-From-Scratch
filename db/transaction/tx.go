@@ -55,6 +55,11 @@ func (tm *TxManager) Unwatch(clientID string) {
 	tm.clientWatches.unwatch(clientID)
 }
 
+/**
+ * Multi starts a transaction
+ * @param clientID string - the client id
+ * @return error - the error if there is one
+ */
 func (tm *TxManager) Multi(clientID string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -78,6 +83,11 @@ func (tm *TxManager) Multi(clientID string) error {
 	return nil
 }
 
+/**
+ * Discard discards a transaction
+ * @param clientID string - the client id
+ * @return error - the error if there is one
+ */
 func (tm *TxManager) Discard(clientID string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
@@ -94,6 +104,12 @@ func (tm *TxManager) Discard(clientID string) error {
 	return nil
 }
 
+/**
+ * Exec executes a transaction
+ * @param clientID string - the client id
+ * @return []commandQueued - the commands that were queued in the transaction
+ * @return error - the error if there is one
+ */
 func (tm *TxManager) Exec(clientID string) ([]commandQueued, error) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()

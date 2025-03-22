@@ -18,6 +18,12 @@ import (
 // passing clientID and txManager to the handler because we need for transaction related commands, other than that we are not using them, so is it a good practice?? Not sure!!
 type commandHandler func(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error
 
+/**
+ * getHandlers returns the handler for the given command
+ * @param cmd string - the command to get the handler for
+ * @return commandHandler - the handler for the given command
+ * @return bool - true if the handler was found, false otherwise
+ */
 func getHandlers(cmd string) (commandHandler, bool) {
 	handlers := map[string]commandHandler{
 		"PING":   handlePing, // responds with "PONG"
@@ -69,14 +75,15 @@ func getHandlers(cmd string) (commandHandler, bool) {
 	return handler, exists
 }
 
-/*
- 	* handlePing handles the PING command, returns "PONG"
-	* @param writer *RESP.Writer - the writer to write the response to
-	* @param args []RESP.RESPMessage - the arguments for the command
-	* @param store *store.Store - the store to get the data from
-	* @return error - the error if there is one
-	* @return simple string "PONG"
-*/
+/**
+ * handlePing handles the PING command, responds with "PONG"
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @param store *store.Store - the store to get the data from
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
+ */
 func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	return writer.Encode(&RESP.RESPMessage{
 		RESPType:  RESP.SimpleString,
@@ -89,6 +96,8 @@ func handlePing(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return bulk string - the message to echo
 */
@@ -112,6 +121,8 @@ func handleEcho(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return simple string "OK"
 */
@@ -187,6 +198,8 @@ func handleSet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store,
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return bulk string - the value of the key
 */
@@ -218,6 +231,8 @@ func handleGet(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store,
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return array - the configuration of the server
 */
@@ -272,6 +287,8 @@ func handleConfig(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Sto
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return array - the keys that match the pattern
 */
@@ -285,7 +302,6 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	pattern := string(args[0].RESPValue)
 	keys := store.GetKeys(pattern)
 
-	// Create response array
 	response := make([]RESP.RESPMessage, len(keys))
 	for i, key := range keys {
 		response[i] = RESP.RESPMessage{
@@ -307,6 +323,8 @@ func handleKeys(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return simple string - the type of the key
 */
@@ -353,6 +371,8 @@ func handleType(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return bulk string - the ID of the new entry
 */
@@ -402,6 +422,8 @@ func handleXAdd(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	* @param writer *RESP.Writer - the writer to write the response to
 	* @param args []RESP.RESPMessage - the arguments for the command
 	* @param store *store.Store - the store to get the data from
+	* @param clientID string - the client id
+	* @param txManager *tx.TxManager - the transaction manager
 	* @return error - the error if there is one
 	* @return array - The actual return value is a RESP Array of arrays. Each inner array represents an entry.The first item in the inner array is the ID of the entry.The second item is a list of key value pairs, where the key value pairs are represented as a list of strings.The key value pairs are in the order they were added to the entry.
 */
@@ -628,6 +650,15 @@ func handleExit(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	return ErrClientClosed
 }
 
+/**
+ * handleMulti handles the MULTI command, starts a transaction
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @param store *store.Store - the store to get the data from
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
+ */
 func handleMulti(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	err := txManager.Multi(clientID)
 	if err != nil {
@@ -639,6 +670,15 @@ func handleMulti(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Stor
 	})
 }
 
+/**
+ * handleExec handles the EXEC command, executes a transaction
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @param store *store.Store - the store to get the data from
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
+ */
 func handleExec(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	commands, err := txManager.Exec(clientID)
 	if err != nil {
@@ -689,6 +729,15 @@ func handleExec(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store
 	})
 }
 
+/**
+ * handleDiscard handles the DISCARD command, discards a transaction
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @param store *store.Store - the store to get the data from
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
+ */
 func handleDiscard(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	err := txManager.Discard(clientID)
 	if err != nil {
@@ -701,6 +750,15 @@ func handleDiscard(writer *RESP.Writer, args []RESP.RESPMessage, store *store.St
 
 }
 
+/**
+ * handleWatch handles the WATCH command, sets keys to be watched for transaction, CAS
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param args []RESP.RESPMessage - the arguments for the command, each representing a key to watch
+ * @param store *store.Store - the store to get the data from (unused in this function)
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
+ */
 func handleWatch(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 	if len(args) < 1 {
 		err := errWrongNumberOfArguments("WATCH")
@@ -716,13 +774,15 @@ func handleWatch(writer *RESP.Writer, args []RESP.RESPMessage, store *store.Stor
 	})
 }
 
-/*
-* ExecuteCommand executes a command and returns the response
-* @param writer *RESP.Writer - the writer to write the response to
-* @param cmd string - the command to execute
-* @param args []RESP.RESPMessage - the arguments for the command
-* @param store *store.Store - the store to get the data from
-* @return error - the error if there is one
+/**
+ * ExecuteCommand executes a command and returns the response
+ * @param writer *RESP.Writer - the writer to write the response to
+ * @param cmd string - the command to execute
+ * @param args []RESP.RESPMessage - the arguments for the command
+ * @param store *store.Store - the store to get the data from
+ * @param clientID string - the client id
+ * @param txManager *tx.TxManager - the transaction manager
+ * @return error - the error if there is one
  */
 func ExecuteCommand(writer *RESP.Writer, cmd string, args []RESP.RESPMessage, store *store.Store, clientID string, txManager *tx.TxManager) error {
 
