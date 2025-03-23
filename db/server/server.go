@@ -3,6 +3,7 @@ package server
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -58,9 +59,7 @@ func (redisServer *RedisServer) Start(dir, dbFilename string) error {
 				redisServer.store.Set(kv.Key, kv.Value, kv.ExpiresIn)
 			}
 		}
-	} else {
-		log.Println("No RDB file found at:", rdbPath)
-	}
+	} 
 
 	for {
 		conn, err := redisServer.listener.Accept()
@@ -84,6 +83,10 @@ func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 	for {
 		msg, err := reader.Decode()
 		if err != nil {
+			if err == io.EOF {
+				log.Print("Client disconnected")
+				return
+			}
 			log.Printf("Error decoding RESP message: %v", err)
 			Handlers.HandleError(writer, []byte("ERR bad request"))
 			return
@@ -111,7 +114,7 @@ func (redisServer *RedisServer) handleConnection(conn net.Conn) {
 
 const (
 	HOST = "0.0.0.0"
-	PORT = 6379
+	PORT = 9379
 )
 
 func DbStart() {
