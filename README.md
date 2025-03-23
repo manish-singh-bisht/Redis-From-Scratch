@@ -1,8 +1,20 @@
-# Redis-From-Scratch
+# <ins>Redis-From-Scratch</ins>
 
 Redis built from scratch in Go.
 
-## Features
+## <ins>Demo</ins>
+### 1. Basic Ops
+[basic ops.webm](https://github.com/user-attachments/assets/8ab4d2eb-7732-40b3-8bfa-c00b0085727a)
+
+### 2. Streams
+[stream.webm](https://github.com/user-attachments/assets/088336b5-45bd-4bc5-9c77-4830985a4fea)
+
+### 3. Transactions
+
+[tx.webm](https://github.com/user-attachments/assets/bd167941-03d5-402a-91bd-f66de81e027a)
+
+
+## <ins>Features</ins>
 
 ### 1) Basic Commands:
 
@@ -67,7 +79,7 @@ To clone and run locally, follow these steps:
    ./rds
    ```
 
-## Example
+## <ins>Example</ins>
 
 1. Use any Redis client to connect to the server on the port 9379.
 2. Using redis-cli, connect using `redis-cli -p 9379`
@@ -122,7 +134,7 @@ EXEC  # Will fail if user:1 was modified by another client
 
 ```
 
-## Contributing
+## <ins>Contributing</ins>
 
 We'd love your help! Here's a simple guide to contributing:
 
